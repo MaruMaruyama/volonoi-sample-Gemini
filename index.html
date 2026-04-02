@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voronoi Market Simulator v8 (Stable Global Area)</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body { margin: 0; display: flex; font-family: 'Segoe UI', sans-serif; background: #2c3e50; overflow: hidden; }
+        #sidebar { width: 280px; height: 100vh; background: #2c3e50; color: white; overflow-y: auto; z-index: 2000; box-shadow: 2px 0 10px rgba(0,0,0,0.3); }
+        #map { flex: 1; height: 100vh; position: relative; }
+        .sidebar-content { padding: 15px; }
+        h2.sidebar-title { font-size: 18px; margin: 0 0 15px 0; border-bottom: 2px solid #34495e; padding-bottom: 5px; }
+        .rank-item { background: rgba(255,255,255,0.1); margin-bottom: 8px; padding: 10px; border-radius: 6px; font-size: 12px; border-left: 4px solid #e74c3c; }
+        .area-val { color: #f1c40f; font-weight: bold; display: block; margin-top: 4px; }
+        .control-panel {
+            position: absolute; top: 10px; right: 10px; z-index: 3000;
+            background: rgba(255, 255, 255, 0.95); padding: 15px; border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3); width: 190px; font-size: 11px; color: #333;
+        }
+        .lang-btn { width: 100%; background: #34495e; color: white; border: none; padding: 8px; border-radius: 4px; cursor: pointer; margin-bottom: 10px; font-size: 11px; font-weight: bold; }
+        .guide { background: #f0f0f0; padding: 8px; border-radius: 6px; line-height: 1.4; color: #444; border: 1px solid #ddd; }
+        .shop-label { font-size: 11px; font-weight: bold; fill: white; pointer-events: none; text-anchor: middle; dominant-baseline: central; }
+    </style>
+</head>
+<body>
+
+<div id="sidebar">
+    <div class="sidebar-content">
+        <h2 class="sidebar-title" data-en="Market Ranking" data-jp="商圏ランキング">Market Ranking</h2>
+        <div id="rank-list"></div>
+    </div>
+</div>
+
+<div id="map">
+    <div class="control-panel" id="ui-panel">
+        <button class="lang-btn" id="lang-toggle-btn" onclick="toggleLanguage(event)">Switch to 日本語</button>
+        <div class="guide">
+            <b data-en="Controls:" data-jp="操作方法:">Controls:</b><br>
+            <span data-en="🖱️ Click: Add Shop" data-jp="🖱️ クリック：追加">🖱️ Click: Add Shop</span><br>
+            <span data-en="⌨️ Shift+Click: Remove" data-jp="⌨️ Shift+クリック：削除">⌨️ Shift+Click: Remove</span>
+        </div>
+    </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script src="https://unpkg.com/d3-delaunay@6"></script>
+
+<script>
+    let currentLang = localStorage.getItem('lang') || 'en';
+    let shops = [
+        { lat: 35.6585, lng: 139.7010, id: 1 },
+        { lat: 35.6615, lng: 139.7000, id: 2 },
+        { lat: 35.6575, lng: 139.7040, id: 3 },
+        { lat: 35.6550, lng: 139.6980, id: 4 }
+    ];
+
+    // 緯度経度配列から球面面積を計算する純粋なJS関数 (m2)
+    function calculateSphericalArea(latLngs) {
+        const radius = 6378137; // 地球の半径 (m)
+        let area = 0;
+        if (latLngs.length > 2) {
+            for (let i = 0; i < latLngs.length; i++) {
+                let p1 = latLngs[i];
+                let p2 = latLngs[(i + 1) % latLngs.length];
+                area += (p2.lng - p1.lng) * Math.PI / 180 * (2 + Math.sin(p1.lat * Math.PI / 180) + Math.sin(p2.lat * Math.PI / 180));
+            }
+            area = area * radius * radius / 2;
+        }
+        return Math.abs(area);
+    }
+
+    function toggleLanguage(e) {
+        if (e) e.stopPropagation();
+        currentLang = (currentLang === 'en') ? 'jp' : 'en';
+        localStorage.setItem('lang', currentLang);
+        updateUI();
+    }
+
+    function updateUI() {
+        document.querySelectorAll('[data-en]').forEach(el => {
+            el.innerText = el.getAttribute(`data-${currentLang}`);
+        });
+        document.getElementById('lang-toggle-btn').innerText = (currentLang === 'en') ? 'Switch to 日本語' : 'English に切替';
+        updateVoronoi();
+    }
+
+    const map = L.map('map', { doubleClickZoom: false }).setView([35.6581, 139.7017], 15);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+    const uiPanel = document.getElementById('ui-panel');
+    L.DomEvent.disableClickPropagation(uiPanel);
+
+    const svg = d3.select(map.getPanes().overlayPane).append("svg");
+    const g = svg.append("g").attr("class", "leaflet-zoom-hide");
+
+    function formatArea(sqMeters) {
+        if (sqMeters >= 1000000) return (sqMeters / 1000000).toFixed(2) + " km²";
+        return Math.round(sqMeters).toLocaleString() + " m²";
+    }
+
+    function updateVoronoi() {
+        const bounds = map.getBounds();
+        const topLeft = map.latLngToLayerPoint(bounds.getNorthWest());
+        const bottomRight = map.latLngToLayerPoint(bounds.getSouthEast());
+        
+        const points = shops.map(d => {
+            const p = map.latLngToLayerPoint([d.lat, d.lng]);
+            return { x: p.x, y: p.y, id: d.id };
+        });
+
+        svg.attr("width", bottomRight.x - topLeft.x).attr("height", bottomRight.y - topLeft.y)
+           .style("left", topLeft.x + "px").style("top", topLeft.y + "px");
+        g.attr("transform", `translate(${-topLeft.x}, ${-topLeft.y})`);
+
+        g.selectAll("*").remove();
+        let rankingData = [];
+
+        if (points.length >= 2) {
+            const delaunay = d3.Delaunay.from(points.map(p => [p.x, p.y]));
+            const voronoi = delaunay.voronoi([topLeft.x, topLeft.y, bottomRight.x, bottomRight.y]);
+
+            const polygons = voronoi.cellPolygons();
+            let i = 0;
+            for (const poly of polygons) {
+                const latLngs = poly.map(p => map.layerPointToLatLng([p[0], p[1]]));
+                const area = calculateSphericalArea(latLngs);
+                
+                rankingData.push({ id: shops[i].id, area: area });
+                g.append("path").attr("d", d3.line()(poly)).attr("stroke", "#2c3e50").attr("fill", "rgba(231, 76, 60, 0.05)").attr("stroke-width", 2);
+                i++;
+            }
+        }
+
+        const list = d3.select("#rank-list");
+        list.selectAll("*").remove();
+        const areaLabel = (currentLang === 'en') ? 'Market Area' : '商圏面積';
+
+        rankingData.sort((a, b) => b.area - a.area).forEach((d, idx) => {
+            list.append("div").attr("class", "rank-item")
+                .html(`<b>Rank ${idx+1}</b> (ID: ${d.id})<br><span class="area-val">${areaLabel}: ${formatArea(d.area)}</span>`);
+        });
+
+        points.forEach((p, index) => {
+            const group = g.append("g").style("cursor", "pointer")
+                .on("click", (event) => {
+                    if (event.shiftKey) {
+                        event.stopPropagation();
+                        shops.splice(index, 1);
+                        updateVoronoi();
+                    }
+                });
+            group.append("circle").attr("cx", p.x).attr("cy", p.y).attr("r", 10).attr("fill", "#e74c3c").attr("stroke", "#fff").attr("stroke-width", 2);
+            group.append("text").attr("x", p.x).attr("y", p.y).attr("class", "shop-label").text(p.id);
+        });
+    }
+
+    map.on("click", (e) => {
+        if (!e.originalEvent.shiftKey) {
+            const newId = shops.length > 0 ? Math.max(...shops.map(s => s.id)) + 1 : 1;
+            shops.push({ lat: e.latlng.lat, lng: e.latlng.lng, id: newId });
+            updateVoronoi();
+        }
+    });
+
+    map.on("viewreset move", updateVoronoi);
+    updateUI();
+</script>
+</body>
+</html>
