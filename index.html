@@ -1,0 +1,132 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <meta http-equiv="Content-Style-Type" content="text/css">
+  <title></title>
+  <meta name="Generator" content="Cocoa HTML Writer">
+  <meta name="CocoaVersion" content="2685.4">
+  <style type="text/css">
+    p.p1 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Helvetica}
+    p.p2 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Helvetica; min-height: 14.0px}
+  </style>
+</head>
+<body>
+<p class="p1">&lt;!DOCTYPE html&gt;</p>
+<p class="p1">&lt;html lang="ja"&gt;</p>
+<p class="p1">&lt;head&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;meta charset="UTF-8"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;title&gt;Voronoi Market Analysis Tool&lt;/title&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" /&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;style&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>body { margin: 0; display: flex; font-family: sans-serif; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>#map { flex: 1; height: 100vh; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>#sidebar { width: 300px; height: 100vh; background: #2c3e50; color: white; overflow-y: auto; padding: 20px; box-sizing: border-box; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.shop-item { background: #34495e; margin-bottom: 10px; padding: 10px; border-radius: 5px; font-size: 14px; border-left: 5px solid #e74c3c; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.area-val { color: #f1c40f; font-weight: bold; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>h2 { font-size: 18px; border-bottom: 1px solid #555; padding-bottom: 10px; }</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;/style&gt;</p>
+<p class="p1">&lt;/head&gt;</p>
+<p class="p1">&lt;body&gt;</p>
+<p class="p2"><br></p>
+<p class="p1">&lt;div id="sidebar"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;h2&gt;商圏面積ランキング&lt;/h2&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;p style="font-size: 12px; opacity: 0.8;"&gt;※画面上のピクセル面積で計算&lt;/p&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;div id="rank-list"&gt;&lt;/div&gt;</p>
+<p class="p1">&lt;/div&gt;</p>
+<p class="p1">&lt;div id="map"&gt;&lt;/div&gt;</p>
+<p class="p2"><br></p>
+<p class="p1">&lt;script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"&gt;&lt;/script&gt;</p>
+<p class="p1">&lt;script src="https://d3js.org/d3.v7.min.js"&gt;&lt;/script&gt;</p>
+<p class="p1">&lt;script src="https://unpkg.com/d3-delaunay@6"&gt;&lt;/script&gt;</p>
+<p class="p2"><br></p>
+<p class="p1">&lt;script&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const map = L.map('map', { doubleClickZoom: false }).setView([35.6581, 139.7017], 15);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>let shops = [</p>
+<p class="p1"><span class="Apple-converted-space">        </span>{ lat: 35.6585, lng: 139.7010, id: 1 },</p>
+<p class="p1"><span class="Apple-converted-space">        </span>{ lat: 35.6600, lng: 139.6980, id: 2 },</p>
+<p class="p1"><span class="Apple-converted-space">        </span>{ lat: 35.6570, lng: 139.7040, id: 3 }</p>
+<p class="p1"><span class="Apple-converted-space">    </span>];</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>const svg = d3.select(map.getPanes().overlayPane).append("svg");</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const g = svg.append("g").attr("class", "leaflet-zoom-hide");</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>function updateVoronoi() {</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const bounds = map.getBounds();</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const topLeft = map.latLngToLayerPoint(bounds.getNorthWest());</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const bottomRight = map.latLngToLayerPoint(bounds.getSouthEast());</p>
+<p class="p2"><span class="Apple-converted-space">        </span></p>
+<p class="p1"><span class="Apple-converted-space">        </span>const points = shops.map(d =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>const p = map.latLngToLayerPoint([d.lat, d.lng]);</p>
+<p class="p1"><span class="Apple-converted-space">            </span>return [p.x, p.y];</p>
+<p class="p1"><span class="Apple-converted-space">        </span>});</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">        </span>svg.attr("width", bottomRight.x - topLeft.x).attr("height", bottomRight.y - topLeft.y)</p>
+<p class="p1"><span class="Apple-converted-space">           </span>.style("left", topLeft.x + "px").style("top", topLeft.y + "px");</p>
+<p class="p1"><span class="Apple-converted-space">        </span>g.attr("transform", `translate(${-topLeft.x}, ${-topLeft.y})`);</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">        </span>g.selectAll("*").remove();</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">        </span>let rankingData = [];</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">        </span>if (points.length &gt;= 2) {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>const delaunay = d3.Delaunay.from(points);</p>
+<p class="p1"><span class="Apple-converted-space">            </span>const voronoi = delaunay.voronoi([topLeft.x, topLeft.y, bottomRight.x, bottomRight.y]);</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">            </span>// ボロノイ境界描画 &amp; 面積計算</p>
+<p class="p1"><span class="Apple-converted-space">            </span>const polygons = voronoi.cellPolygons();</p>
+<p class="p1"><span class="Apple-converted-space">            </span>let i = 0;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>for (const poly of polygons) {</p>
+<p class="p1"><span class="Apple-converted-space">                </span>// 面積を計算 (d3.polygonArea)</p>
+<p class="p1"><span class="Apple-converted-space">                </span>const area = Math.abs(d3.polygonArea(poly));</p>
+<p class="p1"><span class="Apple-converted-space">                </span>rankingData.push({ id: i + 1, area: area });</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">                </span>g.append("path")</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>.attr("d", d3.line()(poly))</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>.attr("stroke", "#2c3e50")</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>.attr("fill", "rgba(231, 76, 60, 0.1)") // 塗りつぶしを追加</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>.attr("stroke-width", 2);</p>
+<p class="p1"><span class="Apple-converted-space">                </span>i++;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>}</p>
+<p class="p1"><span class="Apple-converted-space">        </span>}</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">        </span>// ランキングの更新</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const list = d3.select("#rank-list");</p>
+<p class="p1"><span class="Apple-converted-space">        </span>list.selectAll("*").remove();</p>
+<p class="p1"><span class="Apple-converted-space">        </span>rankingData.sort((a, b) =&gt; b.area - a.area).forEach((d, idx) =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>list.append("div").attr("class", "shop-item")</p>
+<p class="p1"><span class="Apple-converted-space">                </span>.html(`No.${idx+1} (店舗ID:${d.id})&lt;br&gt;商圏サイズ: &lt;span class="area-val"&gt;${Math.round(d.area).toLocaleString()} px²&lt;/span&gt;`);</p>
+<p class="p1"><span class="Apple-converted-space">        </span>});</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">        </span>// 店舗ドットの描画</p>
+<p class="p1"><span class="Apple-converted-space">        </span>points.forEach((p, index) =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>const circle = g.append("circle")</p>
+<p class="p1"><span class="Apple-converted-space">                </span>.attr("cx", p[0]).attr("cy", p[1]).attr("r", 6)</p>
+<p class="p1"><span class="Apple-converted-space">                </span>.attr("fill", "#e74c3c").attr("stroke", "#fff").attr("stroke-width", 2);</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">            </span>circle.on("click", (event) =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">                </span>if (event.shiftKey) {</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>event.stopPropagation();</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>shops.splice(index, 1);</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>updateVoronoi();</p>
+<p class="p1"><span class="Apple-converted-space">                </span>}</p>
+<p class="p1"><span class="Apple-converted-space">            </span>});</p>
+<p class="p1"><span class="Apple-converted-space">        </span>});</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>map.on("click", (e) =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">        </span>if (!e.originalEvent.shiftKey) {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>shops.push({ lat: e.latlng.lat, lng: e.latlng.lng, id: shops.length + 1 });</p>
+<p class="p1"><span class="Apple-converted-space">            </span>updateVoronoi();</p>
+<p class="p1"><span class="Apple-converted-space">        </span>}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>});</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>map.on("viewreset move", updateVoronoi);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>updateVoronoi();</p>
+<p class="p1">&lt;/script&gt;</p>
+<p class="p1">&lt;/body&gt;</p>
+<p class="p1">&lt;/html&gt;</p>
+</body>
+</html>
