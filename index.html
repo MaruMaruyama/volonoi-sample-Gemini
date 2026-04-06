@@ -72,10 +72,10 @@
 
     // --- Google Maps Async Loader ---
     function loadGoogleMaps() {
-       // if (GOOGLE_API_KEY === "__GOOGLE_MAPS_API_KEY__" || GOOGLE_API_KEY === "") {
-         //   console.log("Google Maps API Key not provided. Running in OSM mode only.");
-         //   return;
-        }
+    //    if (GOOGLE_API_KEY === "__GOOGLE_MAPS_API_KEY__" || GOOGLE_API_KEY === "") {
+    //        console.log("Google Maps API Key not provided. Running in OSM mode only.");
+    //        return;
+    //   }
 
         const script = document.createElement('script');
         script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_API_KEY}&loading=async&callback=initGoogleLayers`;
