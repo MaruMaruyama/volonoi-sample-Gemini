@@ -16,7 +16,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Inject API Key
-        run: sed -i "s/__GOOGLE_MAPS_API_KEY__/${{ secrets.MAPS_API_KEY }}/g" index.html
+        run: |
+          sed -i "s/__GOOGLE_MAPS_API_KEY__/${{ secrets.MAPS_API_KEY }}/g" index.html
       - name: Setup Pages
         uses: actions/configure-pages@v4
       - name: Upload artifact
