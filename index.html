@@ -3,25 +3,49 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Global Voronoi Simulator v10</title>
+    <title>Voronoi Simulator</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         body { margin: 0; display: flex; font-family: 'Segoe UI', sans-serif; background: #2c3e50; overflow: hidden; }
-        #sidebar { width: 280px; height: 100vh; background: #2c3e50; color: white; overflow-y: auto; z-index: 2000; box-shadow: 2px 0 10px rgba(0,0,0,0.3); }
+        #sidebar { width: 260px; height: 100vh; background: #2c3e50; color: white; overflow-y: auto; z-index: 2000; box-shadow: 2px 0 10px rgba(0,0,0,0.3); flex-shrink: 0; }
         #map { flex: 1; height: 100vh; position: relative; }
-        .sidebar-content { padding: 15px; }
-        h2.sidebar-title { font-size: 18px; margin: 0 0 15px 0; border-bottom: 2px solid #34495e; padding-bottom: 5px; }
-        .rank-item { background: rgba(255,255,255,0.1); margin-bottom: 8px; padding: 10px; border-radius: 6px; font-size: 12px; border-left: 4px solid #e74c3c; }
-        .area-val { color: #f1c40f; font-weight: bold; display: block; margin-top: 4px; }
+        .sidebar-content { padding: 12px; }
+        h2.sidebar-title { font-size: 16px; margin: 0 0 12px 0; border-bottom: 2px solid #34495e; padding-bottom: 5px; }
+        .rank-item { background: rgba(255,255,255,0.1); margin-bottom: 6px; padding: 8px; border-radius: 6px; font-size: 11px; border-left: 4px solid #e74c3c; }
+        .area-val { color: #f1c40f; font-weight: bold; display: block; margin-top: 3px; }
+        .slope-val { color: #5dade2; font-weight: bold; display: block; margin-top: 2px; }
+
         .control-panel {
             position: absolute; top: 10px; right: 10px; z-index: 3000;
-            background: rgba(255, 255, 255, 0.95); padding: 15px; border-radius: 10px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3); width: 200px; font-size: 11px; color: #333;
+            background: rgba(255,255,255,0.96); padding: 12px; border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3); width: 210px; font-size: 11px; color: #333;
         }
-        .lang-btn { width: 100%; background: #34495e; color: white; border: none; padding: 8px; border-radius: 4px; cursor: pointer; margin-bottom: 10px; font-size: 11px; font-weight: bold; }
-        .input-section { margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd; }
-        input[type="file"] { width: 100%; font-size: 10px; margin-top: 5px; }
-        .shop-label { font-size: 11px; font-weight: bold; fill: white; pointer-events: none; text-anchor: middle; dominant-baseline: central; }
+        .ctrl-section { margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #ddd; }
+        .ctrl-section:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+        .ctrl-label { font-weight: bold; margin-bottom: 4px; display: block; }
+        select, input[type="range"] { width: 100%; margin-top: 3px; }
+        select { padding: 4px; border-radius: 4px; border: 1px solid #ccc; font-size: 11px; }
+        .lang-btn, .btn { width: 100%; background: #34495e; color: white; border: none; padding: 7px; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: bold; margin-bottom: 6px; }
+        .btn:hover { background: #2c3e50; }
+        .hint-box { background: #f0f0f0; padding: 7px; border-radius: 5px; line-height: 1.6; }
+        input[type="file"] { width: 100%; font-size: 10px; margin-top: 4px; }
+
+        #legend {
+            position: absolute; bottom: 30px; right: 10px; z-index: 3000;
+            background: rgba(255,255,255,0.92); padding: 10px 14px; border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.25); font-size: 11px; color: #333;
+            display: none;
+        }
+        #legend-bar { width: 160px; height: 14px; border-radius: 4px; margin: 4px 0; }
+        #legend-labels { display: flex; justify-content: space-between; font-size: 10px; color: #555; }
+
+        #slope-loading {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+            z-index: 4000; background: rgba(0,0,0,0.7); color: white;
+            padding: 14px 24px; border-radius: 8px; font-size: 13px; display: none;
+        }
+
+        .leaflet-tile-pane.grayscale { filter: grayscale(100%) brightness(1.1); }
     </style>
 </head>
 <body>
@@ -35,174 +59,520 @@
 
 <div id="map">
     <div class="control-panel" id="ui-panel">
-        <button class="lang-btn" id="lang-toggle-btn" onclick="toggleLanguage(event)">Switch to 日本語</button>
-        <div style="background: #f0f0f0; padding: 8px; border-radius: 6px; margin-bottom:10px;">
-            <b data-en="Controls:" data-jp="操作方法:">Controls:</b><br>
-            <span data-en="🖱️ Click: Add" data-jp="🖱️ クリック：追加">🖱️ Click: Add</span><br>
-            <span data-en="⌨️ Shift+Click: Remove" data-jp="⌨️ Shift+クリック：削除">⌨️ Shift+Click: Remove</span>
+        <div class="ctrl-section">
+            <button class="lang-btn" id="lang-toggle-btn" onclick="toggleLanguage(event)">Switch to 日本語</button>
+            <div class="hint-box">
+                <span data-en="🖱️ Click: Add point" data-jp="🖱️ クリック：点追加">🖱️ Click: Add point</span><br>
+                <span data-en="⇧+Click: Remove point" data-jp="⇧+クリック：点削除">⇧+Click: Remove point</span>
+            </div>
         </div>
-        <div class="input-section">
-            <b data-en="Import JSON (.json)" data-jp="JSON読み込み">Import JSON (.json)</b>
+
+        <div class="ctrl-section">
+            <span class="ctrl-label" data-en="Background Map" data-jp="背景地図">Background Map</span>
+            <select id="map-style-select" onchange="changeMapStyle()">
+                <option value="osm" data-en="OSM (Color)" data-jp="OSM（カラー）">OSM (Color)</option>
+                <option value="osm-gray" data-en="OSM (Grayscale)" data-jp="OSM（グレー）">OSM (Grayscale)</option>
+                <option value="google-road" data-en="Google Roadmap" data-jp="Googleロードマップ">Google Roadmap</option>
+                <option value="google-road-gray" data-en="Google Roadmap (Gray)" data-jp="Googleロードマップ（グレー）">Google Roadmap (Gray)</option>
+                <option value="google-sat" data-en="Google Satellite" data-jp="Google衛星画像">Google Satellite</option>
+            </select>
+        </div>
+
+        <div class="ctrl-section">
+            <span class="ctrl-label" data-en="Color Mode" data-jp="色分けモード">Color Mode</span>
+            <select id="color-mode-select" onchange="onColorModeChange()">
+                <option value="none" data-en="None" data-jp="なし">None</option>
+                <option value="area" data-en="Area Ratio" data-jp="面積比">Area Ratio</option>
+                <option value="slope" data-en="Max Slope (GSI DEM)" data-jp="最大傾斜度（国土地理院DEM）">Max Slope (GSI DEM)</option>
+            </select>
+            <div style="margin-top:6px;">
+                <span class="ctrl-label" data-en="Opacity" data-jp="透過度">Opacity</span>
+                <input type="range" id="opacity-slider" min="5" max="90" value="40" oninput="updateVoronoi()">
+            </div>
+        </div>
+
+        <div class="ctrl-section">
+            <span class="ctrl-label" data-en="Import JSON (.json)" data-jp="JSON読み込み">Import JSON (.json)</span>
             <input type="file" id="json-upload" accept=".json">
         </div>
+    </div>
+
+    <div id="legend">
+        <div id="legend-title" style="font-weight:bold; margin-bottom:2px;"></div>
+        <canvas id="legend-bar" width="160" height="14"></canvas>
+        <div id="legend-labels">
+            <span id="legend-min"></span>
+            <span id="legend-max"></span>
+        </div>
+    </div>
+
+    <div id="slope-loading">
+        <span data-en="Loading elevation data..." data-jp="標高データ読み込み中...">Loading elevation data...</span>
     </div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://d3js.org/d3.v7.min.js"></script>
 <script src="https://unpkg.com/d3-delaunay@6"></script>
-<script src="https://unpkg.com/leaflet.gridlayer.googlemutant@latest/dist/Leaflet.GoogleMutant.js"></script>
+<script src="https://unpkg.com/leaflet.gridlayer.googlemutant@0.13.5/dist/Leaflet.GoogleMutant.js"></script>
 
 <script>
-    // --- Configuration ---
-    // GitHub Actions will replace this string with the actual Secret value
-    const GOOGLE_API_KEY = "__GOOGLE_MAPS_API_KEY__"
+// ── Config ────────────────────────────────────────────────────────────────────
+const GOOGLE_API_KEY = "__GOOGLE_MAPS_API_KEY__";
 
-    let currentLang = localStorage.getItem('lang') || 'en';
-    let shops = [
-        { lat: 35.6585, lng: 139.7010, id: 1 },
-        { lat: 35.6615, lng: 139.7000, id: 2 },
-        { lat: 35.6575, lng: 139.7040, id: 3 }
-    ];
+// ── State ─────────────────────────────────────────────────────────────────────
+let currentLang = localStorage.getItem('lang') || 'en';
+let colorMode = 'none';
+let slopeCache = {};   // key: cell index, value: max slope degrees
+let demCache = {};     // key: "z/x/y", value: 256×256 float array
+let slopeByIndex = {}; // populated after slope calc
+let lastPolyData = []; // { id, area, poly }
+let googleLayersReady = false;
+let googleRoadmap, googleSatellite, googleRoadGray;
 
-    const map = L.map('map', { doubleClickZoom: false }).setView([35.6581, 139.7017], 15);
-    const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OSM' }).addTo(map);
-    const baseMaps = { "OpenStreetMap": osm };
-    const layerControl = L.control.layers(baseMaps).addTo(map);
+let shops = [
+    { lat: 35.6585, lng: 139.7010, id: 1 },
+    { lat: 35.6615, lng: 139.7000, id: 2 },
+    { lat: 35.6575, lng: 139.7040, id: 3 }
+];
 
-    // --- Google Maps Async Loader ---
-    function loadGoogleMaps() {
-    //    if (GOOGLE_API_KEY === "__GOOGLE_MAPS_API_KEY__" || GOOGLE_API_KEY === "") {
-    //        console.log("Google Maps API Key not provided. Running in OSM mode only.");
-    //        return;
-    //   }
+// ── Map setup ──────────────────────────────────────────────────────────────────
+const map = L.map('map', { doubleClickZoom: false }).setView([35.6581, 139.7017], 15);
 
-        const script = document.createElement('script');
-        script.src = `https://maps.googleapis.com/maps/api/js?key=__GOOGLE_MAPS_API_KEY__&loading=async&callback=initGoogleLayers`;
-        script.async = true;
-        script.defer = true;
-        document.head.appendChild(script);
+const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© <a href="https://www.openstreetmap.org">OpenStreetMap</a> contributors',
+    maxZoom: 19
+});
+osmLayer.addTo(map);
+
+// ── SVG overlay ────────────────────────────────────────────────────────────────
+const svg = d3.select(map.getPanes().overlayPane).append("svg");
+const g = svg.append("g").attr("class", "leaflet-zoom-hide");
+
+// ── Area calculation ───────────────────────────────────────────────────────────
+function calcSphericalArea(latLngs) {
+    const R = 6378137;
+    let area = 0;
+    for (let i = 0; i < latLngs.length; i++) {
+        const p1 = latLngs[i], p2 = latLngs[(i + 1) % latLngs.length];
+        area += (p2.lng - p1.lng) * Math.PI / 180 *
+                (2 + Math.sin(p1.lat * Math.PI / 180) + Math.sin(p2.lat * Math.PI / 180));
     }
+    return Math.abs(area * R * R / 2);
+}
 
-    window.initGoogleLayers = function() {
-        const googleRoadmap = L.gridLayer.googleMutant({ type: 'roadmap' });
-        const googleSatellite = L.gridLayer.googleMutant({ type: 'satellite' });
-        layerControl.addBaseLayer(googleRoadmap, "Google Roadmap");
-        layerControl.addBaseLayer(googleSatellite, "Google Satellite");
-    };
+// ── DEM tile utilities ─────────────────────────────────────────────────────────
+const DEM_ZOOM = 14;
+const DEM_SOURCES = [
+    'https://cyberjapandata.gsi.go.jp/xyz/dem5a/{z}/{x}/{y}.txt',
+    'https://cyberjapandata.gsi.go.jp/xyz/dem5b/{z}/{x}/{y}.txt',
+    'https://cyberjapandata.gsi.go.jp/xyz/dem/{z}/{x}/{y}.txt'
+];
 
-    // --- Core Logic ---
-    function calculateSphericalArea(latLngs) {
-        const radius = 6378137;
-        let area = 0;
-        for (let i = 0; i < latLngs.length; i++) {
-            let p1 = latLngs[i], p2 = latLngs[(i + 1) % latLngs.length];
-            area += (p2.lng - p1.lng) * Math.PI / 180 * (2 + Math.sin(p1.lat * Math.PI / 180) + Math.sin(p2.lat * Math.PI / 180));
-        }
-        return Math.abs(area * radius * radius / 2);
+function lngLatToTileXY(lng, lat, z) {
+    const n = Math.pow(2, z);
+    const tx = Math.floor((lng + 180) / 360 * n);
+    const latR = lat * Math.PI / 180;
+    const ty = Math.floor((1 - Math.log(Math.tan(latR) + 1 / Math.cos(latR)) / Math.PI) / 2 * n);
+    return { tx, ty };
+}
+
+function lngLatToPixelInTile(lng, lat, z, tx, ty) {
+    const n = Math.pow(2, z);
+    const px = Math.floor(((lng + 180) / 360 * n - tx) * 256);
+    const latR = lat * Math.PI / 180;
+    const py = Math.floor(((1 - Math.log(Math.tan(latR) + 1 / Math.cos(latR)) / Math.PI) / 2 * n - ty) * 256);
+    return { px: Math.max(0, Math.min(255, px)), py: Math.max(0, Math.min(255, py)) };
+}
+
+async function fetchDemTile(z, tx, ty) {
+    const key = `${z}/${tx}/${ty}`;
+    if (demCache[key] !== undefined) return demCache[key];
+
+    for (const src of DEM_SOURCES) {
+        try {
+            const url = src.replace('{z}', z).replace('{x}', tx).replace('{y}', ty);
+            const res = await fetch(url);
+            if (!res.ok) continue;
+            const text = await res.text();
+            const rows = text.trim().split('\n');
+            const data = [];
+            for (let r = 0; r < 256; r++) {
+                const cols = (rows[r] || '').split(',');
+                const row = [];
+                for (let c = 0; c < 256; c++) {
+                    const v = (cols[c] || '').trim();
+                    row.push((v === 'e' || v === '') ? null : parseFloat(v));
+                }
+                data.push(row);
+            }
+            demCache[key] = data;
+            return data;
+        } catch (_) {}
     }
+    demCache[key] = null;
+    return null;
+}
 
-    const svg = d3.select(map.getPanes().overlayPane).append("svg");
-    const g = svg.append("g").attr("class", "leaflet-zoom-hide");
+// Returns elevation (m) at lat/lng using DEM tiles, or null
+async function getElevation(lat, lng) {
+    const { tx, ty } = lngLatToTileXY(lng, lat, DEM_ZOOM);
+    const data = await fetchDemTile(DEM_ZOOM, tx, ty);
+    if (!data) return null;
+    const { px, py } = lngLatToPixelInTile(lng, lat, DEM_ZOOM, tx, ty);
+    return data[py][px];
+}
 
-    function updateVoronoi() {
-        const bounds = map.getBounds();
-        const topLeft = map.latLngToLayerPoint(bounds.getNorthWest());
-        const bottomRight = map.latLngToLayerPoint(bounds.getSouthEast());
-        const points = shops.map(d => {
-            const p = map.latLngToLayerPoint([d.lat, d.lng]);
-            return { x: p.x, y: p.y, id: d.id };
-        });
+// Haversine distance in meters
+function haversineDist(lat1, lng1, lat2, lng2) {
+    const R = 6378137, rad = Math.PI / 180;
+    const dLat = (lat2 - lat1) * rad, dLng = (lng2 - lng1) * rad;
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
 
-        svg.attr("width", bottomRight.x - topLeft.x).attr("height", bottomRight.y - topLeft.y)
-           .style("left", topLeft.x + "px").style("top", topLeft.y + "px");
-        g.attr("transform", `translate(${-topLeft.x}, ${-topLeft.y})`);
+// Point-in-polygon test (ray casting)
+function pointInPoly(px, py, poly) {
+    let inside = false;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+        const xi = poly[i][0], yi = poly[i][1], xj = poly[j][0], yj = poly[j][1];
+        if ((yi > py) !== (yj > py) && px < (xj - xi) * (py - yi) / (yj - yi) + xi) inside = !inside;
+    }
+    return inside;
+}
 
-        g.selectAll("*").remove();
-        let rankingData = [];
+// Calculate max slope (degrees) for a polygon given as [[lng,lat], ...]
+async function calcMaxSlope(polyLatLng) {
+    // polyLatLng: [[lng, lat], ...]  (d3 voronoi output in layer-point space → converted)
+    const lats = polyLatLng.map(p => p[1]);
+    const lngs = polyLatLng.map(p => p[0]);
+    const minLat = Math.min(...lats), maxLat = Math.max(...lats);
+    const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
 
-        if (points.length >= 2) {
-            const delaunay = d3.Delaunay.from(points.map(p => [p.x, p.y]));
-            const voronoi = delaunay.voronoi([topLeft.x, topLeft.y, bottomRight.x, bottomRight.y]);
-            const polygons = voronoi.cellPolygons();
-            let i = 0;
-            for (const poly of polygons) {
-                const latLngs = poly.map(p => map.layerPointToLatLng([p[0], p[1]]));
-                const area = calculateSphericalArea(latLngs);
-                rankingData.push({ id: shops[i].id, area: area });
-                g.append("path").attr("d", d3.line()(poly)).attr("stroke", "#2c3e50").attr("fill", "rgba(231, 76, 60, 0.05)").attr("stroke-width", 2);
-                i++;
+    const SAMPLES = 8; // 8×8 = 64 sample points
+    const dlat = (maxLat - minLat) / (SAMPLES - 1);
+    const dlng = (maxLng - minLng) / (SAMPLES - 1);
+
+    // Build a grid of elevations
+    const grid = [];
+    for (let row = 0; row < SAMPLES; row++) {
+        const gr = [];
+        for (let col = 0; col < SAMPLES; col++) {
+            const lat = minLat + row * dlat;
+            const lng = minLng + col * dlng;
+            if (pointInPoly(lng, lat, polyLatLng)) {
+                gr.push({ lat, lng, elev: await getElevation(lat, lng) });
+            } else {
+                gr.push({ lat, lng, elev: null });
             }
         }
-
-        const list = d3.select("#rank-list");
-        list.selectAll("*").remove();
-        rankingData.sort((a, b) => b.area - a.area).forEach((d, idx) => {
-            const label = (currentLang === 'en') ? 'Area' : '面積';
-            list.append("div").attr("class", "rank-item")
-                .html(`<b>Rank ${idx+1}</b> (ID: ${d.id})<br><span class="area-val">${label}: ${formatArea(d.area)}</span>`);
-        });
-
-        points.forEach((p, index) => {
-            const group = g.append("g").style("cursor", "pointer")
-                .on("click", (event) => {
-                    if (event.shiftKey) {
-                        event.stopPropagation();
-                        shops.splice(index, 1);
-                        updateVoronoi();
-                    }
-                });
-            group.append("circle").attr("cx", p.x).attr("cy", p.y).attr("r", 10).attr("fill", "#e74c3c").attr("stroke", "#fff").attr("stroke-width", 2);
-            group.append("text").attr("x", p.x).attr("y", p.y).attr("class", "shop-label").text(p.id);
-        });
+        grid.push(gr);
     }
 
-    function formatArea(m2) {
-        return m2 >= 1000000 ? (m2/1000000).toFixed(2) + " km²" : Math.round(m2).toLocaleString() + " m²";
+    let maxSlope = 0;
+    for (let row = 0; row < SAMPLES; row++) {
+        for (let col = 0; col < SAMPLES; col++) {
+            const c = grid[row][col];
+            if (c.elev === null) continue;
+            // Check right neighbor
+            if (col + 1 < SAMPLES) {
+                const n = grid[row][col + 1];
+                if (n.elev !== null) {
+                    const dist = haversineDist(c.lat, c.lng, n.lat, n.lng);
+                    if (dist > 0) maxSlope = Math.max(maxSlope, Math.abs(n.elev - c.elev) / dist);
+                }
+            }
+            // Check bottom neighbor
+            if (row + 1 < SAMPLES) {
+                const n = grid[row + 1][col];
+                if (n.elev !== null) {
+                    const dist = haversineDist(c.lat, c.lng, n.lat, n.lng);
+                    if (dist > 0) maxSlope = Math.max(maxSlope, Math.abs(n.elev - c.elev) / dist);
+                }
+            }
+        }
+    }
+    return Math.atan(maxSlope) * (180 / Math.PI);
+}
+
+// ── Color scales ───────────────────────────────────────────────────────────────
+const areaColorScale = d3.scaleSequential(d3.interpolateYlOrRd);
+const slopeColorScale = d3.scaleSequential(d3.interpolateRdYlGn).domain([1, 0]); // red=steep
+
+function cellFill(idx, opacity) {
+    if (colorMode === 'none') return `rgba(231,76,60,${opacity * 0.3})`;
+    if (colorMode === 'area' && lastPolyData.length > 0) {
+        const areas = lastPolyData.map(d => d.area);
+        const mn = Math.min(...areas), mx = Math.max(...areas);
+        const t = mx > mn ? (lastPolyData[idx].area - mn) / (mx - mn) : 0.5;
+        areaColorScale.domain([0, 1]);
+        const c = d3.color(areaColorScale(t));
+        return `rgba(${c.r},${c.g},${c.b},${opacity})`;
+    }
+    if (colorMode === 'slope' && slopeByIndex[idx] !== undefined) {
+        const slopes = Object.values(slopeByIndex).filter(v => v !== null);
+        if (slopes.length === 0) return `rgba(128,128,128,${opacity * 0.5})`;
+        const mn = Math.min(...slopes), mx = Math.max(...slopes);
+        const t = mx > mn ? (slopeByIndex[idx] - mn) / (mx - mn) : 0.5;
+        const c = d3.color(slopeColorScale(t));
+        return `rgba(${c.r},${c.g},${c.b},${opacity})`;
+    }
+    return `rgba(128,128,128,${opacity * 0.5})`;
+}
+
+// ── Legend ─────────────────────────────────────────────────────────────────────
+function updateLegend() {
+    const legend = document.getElementById('legend');
+    if (colorMode === 'none') { legend.style.display = 'none'; return; }
+    legend.style.display = 'block';
+
+    const canvas = document.getElementById('legend-bar');
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width, h = canvas.height;
+    const scale = colorMode === 'area' ? areaColorScale.domain([0,1]) : slopeColorScale;
+
+    for (let x = 0; x < w; x++) {
+        const t = x / (w - 1);
+        const c = d3.color(scale(colorMode === 'slope' ? 1 - t : t));
+        ctx.fillStyle = `rgb(${c.r},${c.g},${c.b})`;
+        ctx.fillRect(x, 0, 1, h);
     }
 
-    function toggleLanguage(e) {
-        if (e) e.stopPropagation();
-        currentLang = (currentLang === 'en') ? 'jp' : 'en';
-        localStorage.setItem('lang', currentLang);
-        updateUI();
+    if (colorMode === 'area') {
+        const areas = lastPolyData.map(d => d.area);
+        document.getElementById('legend-title').textContent = currentLang === 'jp' ? '面積比' : 'Area Ratio';
+        document.getElementById('legend-min').textContent = formatArea(Math.min(...areas));
+        document.getElementById('legend-max').textContent = formatArea(Math.max(...areas));
+    } else {
+        const slopes = Object.values(slopeByIndex).filter(v => v !== null);
+        document.getElementById('legend-title').textContent = currentLang === 'jp' ? '最大傾斜度 (°)' : 'Max Slope (°)';
+        document.getElementById('legend-min').textContent = slopes.length ? Math.min(...slopes).toFixed(1) + '°' : '';
+        document.getElementById('legend-max').textContent = slopes.length ? Math.max(...slopes).toFixed(1) + '°' : '';
+    }
+}
+
+// ── Voronoi rendering ──────────────────────────────────────────────────────────
+function updateVoronoi() {
+    const opacity = document.getElementById('opacity-slider').value / 100;
+    const bounds = map.getBounds();
+    const tl = map.latLngToLayerPoint(bounds.getNorthWest());
+    const br = map.latLngToLayerPoint(bounds.getSouthEast());
+
+    svg.attr("width", br.x - tl.x).attr("height", br.y - tl.y)
+       .style("left", tl.x + "px").style("top", tl.y + "px");
+    g.attr("transform", `translate(${-tl.x},${-tl.y})`);
+    g.selectAll("*").remove();
+
+    if (shops.length < 2) {
+        renderRanking([]);
+        updateLegend();
+        return;
     }
 
-    function updateUI() {
-        document.querySelectorAll('[data-en]').forEach(el => {
-            el.innerText = el.getAttribute(`data-${currentLang}`);
-        });
-        document.getElementById('lang-toggle-btn').innerText = (currentLang === 'en') ? 'Switch to 日本語' : 'English に切替';
+    const pts = shops.map(s => {
+        const p = map.latLngToLayerPoint([s.lat, s.lng]);
+        return [p.x, p.y];
+    });
+    const delaunay = d3.Delaunay.from(pts);
+    const voronoi = delaunay.voronoi([tl.x, tl.y, br.x, br.y]);
+
+    lastPolyData = [];
+    let i = 0;
+    for (const poly of voronoi.cellPolygons()) {
+        const latLngs = poly.map(p => map.layerPointToLatLng([p[0], p[1]]));
+        const area = calcSphericalArea(latLngs);
+        const polyLL = poly.map(p => { const ll = map.layerPointToLatLng([p[0], p[1]]); return [ll.lng, ll.lat]; });
+        lastPolyData.push({ id: shops[i].id, area, poly, polyLL, idx: i });
+        i++;
+    }
+
+    lastPolyData.forEach((d, idx) => {
+        g.append("path")
+            .attr("d", d3.line()(d.poly))
+            .attr("stroke", "#2c3e50")
+            .attr("stroke-width", 2)
+            .attr("fill", cellFill(idx, opacity));
+    });
+
+    // Draw shop markers
+    pts.forEach((p, index) => {
+        const grp = g.append("g").style("cursor", "pointer")
+            .on("click", (event) => {
+                if (event.shiftKey) {
+                    event.stopPropagation();
+                    shops.splice(index, 1);
+                    slopeByIndex = {};
+                    updateVoronoi();
+                }
+            });
+        grp.append("circle").attr("cx", p[0]).attr("cy", p[1]).attr("r", 10)
+           .attr("fill", "#e74c3c").attr("stroke", "#fff").attr("stroke-width", 2);
+        grp.append("text").attr("x", p[0]).attr("y", p[1])
+           .attr("text-anchor", "middle").attr("dominant-baseline", "central")
+           .attr("font-size", "11px").attr("font-weight", "bold").attr("fill", "white")
+           .style("pointer-events", "none").text(shops[index].id);
+    });
+
+    renderRanking(lastPolyData);
+    updateLegend();
+}
+
+function renderRanking(data) {
+    const list = d3.select("#rank-list");
+    list.selectAll("*").remove();
+    const sorted = [...data].sort((a, b) => b.area - a.area);
+    sorted.forEach((d, idx) => {
+        const areaLabel = currentLang === 'jp' ? '面積' : 'Area';
+        const slopeLabel = currentLang === 'jp' ? '最大傾斜' : 'Max Slope';
+        const slopeStr = (colorMode === 'slope' && slopeByIndex[d.idx] !== undefined)
+            ? `<span class="slope-val">${slopeLabel}: ${slopeByIndex[d.idx] !== null ? slopeByIndex[d.idx].toFixed(1) + '°' : 'N/A'}</span>` : '';
+        list.append("div").attr("class", "rank-item")
+            .html(`<b>Rank ${idx + 1}</b> (ID: ${d.id})<span class="area-val">${areaLabel}: ${formatArea(d.area)}</span>${slopeStr}`);
+    });
+}
+
+function formatArea(m2) {
+    return m2 >= 1e6 ? (m2 / 1e6).toFixed(2) + " km²" : Math.round(m2).toLocaleString() + " m²";
+}
+
+// ── Color mode change ──────────────────────────────────────────────────────────
+function onColorModeChange() {
+    colorMode = document.getElementById('color-mode-select').value;
+    if (colorMode === 'slope') {
+        calcAllSlopes();
+    } else {
         updateVoronoi();
     }
+}
 
-    // --- Initialize ---
-    L.DomEvent.disableClickPropagation(document.getElementById('ui-panel'));
-    document.getElementById('json-upload').addEventListener('change', function(e) {
-        const file = e.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            try {
-                shops = JSON.parse(e.target.result);
-                updateVoronoi();
-                if (shops.length > 0) map.panTo([shops[0].lat, shops[0].lng]);
-            } catch (err) { alert("Invalid JSON"); }
-        };
-        reader.readAsText(file);
+async function calcAllSlopes() {
+    slopeByIndex = {};
+    if (lastPolyData.length === 0) { updateVoronoi(); return; }
+    const loading = document.getElementById('slope-loading');
+    loading.style.display = 'block';
+    for (const d of lastPolyData) {
+        try {
+            slopeByIndex[d.idx] = await calcMaxSlope(d.polyLL);
+        } catch (_) {
+            slopeByIndex[d.idx] = null;
+        }
+    }
+    loading.style.display = 'none';
+    updateVoronoi();
+}
+
+// ── Background map style ───────────────────────────────────────────────────────
+const GRAY_STYLES = [
+    { elementType: "all", stylers: [{ saturation: -100 }, { lightness: 10 }] }
+];
+
+function changeMapStyle() {
+    const val = document.getElementById('map-style-select').value;
+    const tilePanes = document.querySelectorAll('.leaflet-tile-pane');
+
+    // Remove grayscale CSS filter
+    tilePanes.forEach(p => p.classList.remove('grayscale'));
+
+    // Remove all base layers
+    [osmLayer, googleRoadmap, googleSatellite, googleRoadGray].forEach(l => {
+        if (l && map.hasLayer(l)) map.removeLayer(l);
     });
 
-    map.on("click", (e) => {
-        if (!e.originalEvent.shiftKey) {
-            const newId = shops.length > 0 ? Math.max(...shops.map(s => s.id)) + 1 : 1;
-            shops.push({ lat: e.latlng.lat, lng: e.latlng.lng, id: newId });
+    if (val === 'osm') {
+        osmLayer.addTo(map);
+    } else if (val === 'osm-gray') {
+        osmLayer.addTo(map);
+        // Apply grayscale after tile pane is ready
+        setTimeout(() => {
+            document.querySelectorAll('.leaflet-tile-pane').forEach(p => p.classList.add('grayscale'));
+        }, 50);
+    } else if (val === 'google-road' || val === 'google-road-gray' || val === 'google-sat') {
+        if (!googleLayersReady) {
+            alert(currentLang === 'jp'
+                ? 'Google MapsのAPIキーが設定されていないか、まだ読み込み中です。'
+                : 'Google Maps API key not set or still loading.');
+            document.getElementById('map-style-select').value = 'osm';
+            osmLayer.addTo(map);
+            return;
+        }
+        if (val === 'google-road') googleRoadmap.addTo(map);
+        else if (val === 'google-road-gray') googleRoadGray.addTo(map);
+        else googleSatellite.addTo(map);
+    }
+}
+
+// ── Google Maps loader ─────────────────────────────────────────────────────────
+window.initGoogleLayers = function () {
+    googleRoadmap = L.gridLayer.googleMutant({ type: 'roadmap' });
+    googleSatellite = L.gridLayer.googleMutant({ type: 'satellite' });
+    googleRoadGray = L.gridLayer.googleMutant({ type: 'roadmap', styles: GRAY_STYLES });
+    googleLayersReady = true;
+};
+
+function loadGoogleMaps() {
+    if (GOOGLE_API_KEY === "__GOOGLE_MAPS_API_KEY__" || GOOGLE_API_KEY === "") return;
+    const s = document.createElement('script');
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_API_KEY}&loading=async&callback=initGoogleLayers`;
+    s.async = true; s.defer = true;
+    document.head.appendChild(s);
+}
+
+// ── Language ───────────────────────────────────────────────────────────────────
+function toggleLanguage(e) {
+    if (e) e.stopPropagation();
+    currentLang = currentLang === 'en' ? 'jp' : 'en';
+    localStorage.setItem('lang', currentLang);
+    updateUI();
+}
+
+function updateUI() {
+    document.querySelectorAll('[data-en]').forEach(el => {
+        el.innerText = el.getAttribute(`data-${currentLang}`);
+    });
+    // Update select option labels
+    document.querySelectorAll('select option[data-en]').forEach(opt => {
+        opt.textContent = opt.getAttribute(`data-${currentLang}`);
+    });
+    document.getElementById('lang-toggle-btn').innerText =
+        currentLang === 'en' ? 'Switch to 日本語' : 'English に切替';
+    updateVoronoi();
+}
+
+// ── Initialize ─────────────────────────────────────────────────────────────────
+L.DomEvent.disableClickPropagation(document.getElementById('ui-panel'));
+
+document.getElementById('json-upload').addEventListener('change', function (e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function (ev) {
+        try {
+            shops = JSON.parse(ev.target.result);
+            slopeByIndex = {};
+            updateVoronoi();
+            if (shops.length > 0) map.panTo([shops[0].lat, shops[0].lng]);
+        } catch (_) { alert("Invalid JSON"); }
+    };
+    reader.readAsText(file);
+});
+
+map.on("click", (e) => {
+    if (!e.originalEvent.shiftKey) {
+        const newId = shops.length > 0 ? Math.max(...shops.map(s => s.id)) + 1 : 1;
+        shops.push({ lat: e.latlng.lat, lng: e.latlng.lng, id: newId });
+        slopeByIndex = {};
+        if (colorMode === 'slope') {
+            calcAllSlopes();
+        } else {
             updateVoronoi();
         }
-    });
+    }
+});
 
-    map.on("viewreset move", updateVoronoi);
-    loadGoogleMaps(); // Start loading Google Maps
-    updateUI();
+map.on("viewreset move", updateVoronoi);
+
+loadGoogleMaps();
+updateUI();
 </script>
 </body>
 </html>
