@@ -455,7 +455,7 @@ async function calcSlopeStats(polyLatLng) {
 
 // ── Color scales ──────────────────────────────────────────────────────────────
 const areaColorScale  = d3.scaleSequential(d3.interpolateYlOrRd).domain([0, 1]);
-const slopeColorScale = d3.scaleSequential(d3.interpolateBlues).domain([0, 1]);
+const slopeColorScale = d3.scaleSequential(d3.interpolateOranges).domain([0, 1]);
 
 function cellFill(idx, opacity) {
     if (colorMode === 'none') return `rgba(231,76,60,${opacity * 0.3})`;
