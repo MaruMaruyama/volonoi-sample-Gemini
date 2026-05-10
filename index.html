@@ -2,34 +2,109 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Voronoi Simulator</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body { margin: 0; display: flex; font-family: 'Segoe UI', sans-serif; background: #2c3e50; overflow: hidden; }
-        #sidebar { width: 260px; height: 100vh; background: #2c3e50; color: white; overflow-y: auto; z-index: 2000; box-shadow: 2px 0 10px rgba(0,0,0,0.3); flex-shrink: 0; }
-        #map { flex: 1; height: 100vh; position: relative; }
+        /* ── Base ── */
+        *, *::before, *::after { box-sizing: border-box; }
+        body {
+            margin: 0; display: flex;
+            font-family: 'Segoe UI', sans-serif;
+            background: #2c3e50; overflow: hidden;
+        }
+
+        /* ── Sidebar ── */
+        #sidebar {
+            width: 260px; height: 100vh;
+            background: #2c3e50; color: white;
+            overflow-y: auto; z-index: 2000;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.3);
+            flex-shrink: 0;
+        }
+        #sidebar-backdrop {
+            display: none; /* shown only on mobile */
+        }
         .sidebar-content { padding: 12px; }
-        h2.sidebar-title { font-size: 16px; margin: 0 0 12px 0; border-bottom: 2px solid #34495e; padding-bottom: 5px; }
-        .rank-item { background: rgba(255,255,255,0.1); margin-bottom: 6px; padding: 8px; border-radius: 6px; font-size: 11px; border-left: 4px solid #e74c3c; }
-        .area-val { color: #f1c40f; font-weight: bold; display: block; margin-top: 3px; }
+        h2.sidebar-title {
+            font-size: 16px; margin: 0 0 12px 0;
+            border-bottom: 2px solid #34495e; padding-bottom: 5px;
+            display: flex; align-items: center; gap: 8px;
+        }
+        #sidebar-close {
+            display: none; /* shown only on mobile */
+            margin-left: auto; background: none; border: none;
+            color: white; font-size: 20px; cursor: pointer; padding: 0 4px;
+        }
+        .rank-item {
+            background: rgba(255,255,255,0.1); margin-bottom: 6px;
+            padding: 8px; border-radius: 6px; font-size: 11px;
+            border-left: 4px solid #e74c3c;
+        }
+        .area-val  { color: #f1c40f; font-weight: bold; display: block; margin-top: 3px; }
         .slope-val { color: #5dade2; font-weight: bold; display: block; margin-top: 2px; }
 
+        /* ── Map ── */
+        #map { flex: 1; height: 100vh; position: relative; }
+
+        /* ── Hamburger (desktop: hidden) ── */
+        #hamburger-btn {
+            display: none;
+            position: absolute; top: 10px; left: 10px; z-index: 3500;
+            width: 44px; height: 44px;
+            background: rgba(255,255,255,0.96); border: none; border-radius: 8px;
+            font-size: 20px; cursor: pointer; align-items: center; justify-content: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+        }
+
+        /* ── Control Panel ── */
         .control-panel {
             position: absolute; top: 10px; right: 10px; z-index: 3000;
             background: rgba(255,255,255,0.96); padding: 12px; border-radius: 10px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3); width: 210px; font-size: 11px; color: #333;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3); width: 215px;
+            font-size: 11px; color: #333;
         }
+        .panel-header { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; }
+        .lang-btn {
+            flex: 1; background: #34495e; color: white; border: none;
+            padding: 7px; border-radius: 4px; cursor: pointer;
+            font-size: 11px; font-weight: bold;
+        }
+        #panel-toggle {
+            display: none; /* shown only on mobile */
+            background: #ecf0f1; border: none; border-radius: 4px;
+            width: 32px; height: 32px; font-size: 14px; cursor: pointer;
+            flex-shrink: 0;
+        }
+        #panel-body {}
         .ctrl-section { margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #ddd; }
         .ctrl-section:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
         .ctrl-label { font-weight: bold; margin-bottom: 4px; display: block; }
-        select, input[type="range"] { width: 100%; margin-top: 3px; }
-        select { padding: 4px; border-radius: 4px; border: 1px solid #ccc; font-size: 11px; }
-        .lang-btn, .btn { width: 100%; background: #34495e; color: white; border: none; padding: 7px; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: bold; margin-bottom: 6px; }
-        .btn:hover { background: #2c3e50; }
-        .hint-box { background: #f0f0f0; padding: 7px; border-radius: 5px; line-height: 1.6; }
+        select { width: 100%; margin-top: 3px; padding: 4px; border-radius: 4px; border: 1px solid #ccc; font-size: 11px; }
+        input[type="range"] { width: 100%; margin-top: 3px; }
+        .hint-box {
+            background: #f0f0f0; padding: 7px; border-radius: 5px; line-height: 1.7;
+            font-size: 11px;
+        }
+        .hint-desktop { display: block; }
+        .hint-mobile  { display: none; }
         input[type="file"] { width: 100%; font-size: 10px; margin-top: 4px; }
 
+        /* ── Delete mode button (desktop: hidden) ── */
+        #delete-mode-btn {
+            display: none;
+            position: absolute; bottom: 30px; left: 10px; z-index: 3000;
+            width: 52px; height: 52px; border-radius: 50%;
+            background: rgba(255,255,255,0.96); border: 2px solid #bdc3c7;
+            font-size: 22px; cursor: pointer; align-items: center; justify-content: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+            transition: background 0.2s, border-color 0.2s;
+        }
+        #delete-mode-btn.active {
+            background: #e74c3c; border-color: #c0392b; color: white;
+        }
+
+        /* ── Legend ── */
         #legend {
             position: absolute; bottom: 30px; right: 10px; z-index: 3000;
             background: rgba(255,255,255,0.92); padding: 10px 14px; border-radius: 8px;
@@ -39,65 +114,159 @@
         #legend-bar { width: 160px; height: 14px; border-radius: 4px; margin: 4px 0; }
         #legend-labels { display: flex; justify-content: space-between; font-size: 10px; color: #555; }
 
+        /* ── Loading indicator ── */
         #slope-loading {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
-            z-index: 4000; background: rgba(0,0,0,0.7); color: white;
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+            z-index: 4000; background: rgba(0,0,0,0.72); color: white;
             padding: 14px 24px; border-radius: 8px; font-size: 13px; display: none;
         }
 
+        /* ── Misc ── */
         .leaflet-tile-pane.grayscale { filter: grayscale(100%) brightness(1.1); }
+
+        /* ══════════════════════════════════
+           Mobile styles  (max-width: 640px)
+           ══════════════════════════════════ */
+        @media (max-width: 640px) {
+            body { display: block; }
+
+            /* Sidebar becomes a fixed drawer */
+            #sidebar {
+                position: fixed; top: 0; left: 0; bottom: 0;
+                transform: translateX(-100%);
+                transition: transform 0.25s ease;
+                width: min(280px, 85vw);
+                height: 100dvh;
+                z-index: 5000;
+            }
+            #sidebar.open { transform: translateX(0); }
+
+            /* Dark backdrop when drawer open */
+            #sidebar-backdrop {
+                display: block;
+                position: fixed; inset: 0;
+                background: rgba(0,0,0,0.5);
+                z-index: 4999;
+                opacity: 0; pointer-events: none;
+                transition: opacity 0.25s;
+            }
+            #sidebar-backdrop.visible { opacity: 1; pointer-events: auto; }
+
+            #sidebar-close { display: block; }
+
+            /* Map: full viewport height accounting for browser chrome */
+            #map { height: 100dvh; width: 100vw; }
+
+            /* Hamburger visible */
+            #hamburger-btn { display: flex; }
+
+            /* Control panel: anchored top-right, leaves room for hamburger */
+            .control-panel {
+                top: 10px; right: 10px;
+                left: 64px;       /* don't overlap hamburger */
+                width: auto;
+                max-height: calc(100dvh - 80px);
+                overflow-y: auto;
+            }
+            /* Collapsed state hides panel body */
+            .control-panel.collapsed #panel-body { display: none; }
+            .control-panel.collapsed { padding-bottom: 4px; }
+
+            #panel-toggle { display: flex; align-items: center; justify-content: center; }
+
+            /* Hint text variants */
+            .hint-desktop { display: none; }
+            .hint-mobile  { display: block; }
+
+            /* Delete mode button visible */
+            #delete-mode-btn { display: flex; }
+
+            /* Legend above delete button */
+            #legend { bottom: 90px; }
+            #legend-bar { width: 130px; }
+
+            /* Leaflet zoom controls: move away from hamburger */
+            .leaflet-top.leaflet-left { top: 64px; }
+        }
     </style>
 </head>
 <body>
 
+<!-- ── Sidebar ── -->
 <div id="sidebar">
     <div class="sidebar-content">
-        <h2 class="sidebar-title" data-en="Market Ranking" data-jp="商圏ランキング">Market Ranking</h2>
+        <h2 class="sidebar-title">
+            <span data-en="Area Ranking" data-jp="商圏ランキング">Area Ranking</span>
+            <button id="sidebar-close" onclick="closeSidebar()" aria-label="close">✕</button>
+        </h2>
         <div id="rank-list"></div>
     </div>
 </div>
+<!-- Backdrop (mobile) -->
+<div id="sidebar-backdrop" onclick="closeSidebar()"></div>
 
+<!-- ── Map ── -->
 <div id="map">
+
+    <!-- Hamburger (mobile) -->
+    <button id="hamburger-btn" onclick="toggleSidebar()" aria-label="menu">☰</button>
+
+    <!-- Control Panel -->
     <div class="control-panel" id="ui-panel">
-        <div class="ctrl-section">
+        <div class="panel-header">
             <button class="lang-btn" id="lang-toggle-btn" onclick="toggleLanguage(event)">Switch to 日本語</button>
-            <div class="hint-box">
-                <span data-en="🖱️ Click: Add point" data-jp="🖱️ クリック：点追加">🖱️ Click: Add point</span><br>
-                <span data-en="⇧+Click: Remove point" data-jp="⇧+クリック：点削除">⇧+Click: Remove point</span>
+            <button id="panel-toggle" onclick="togglePanel(event)" title="設定を開閉">⚙</button>
+        </div>
+        <div id="panel-body">
+            <div class="ctrl-section">
+                <div class="hint-box">
+                    <span class="hint-desktop">
+                        <span data-en="🖱️ Click: Add" data-jp="🖱️ クリック：追加">🖱️ Click: Add</span><br>
+                        <span data-en="⇧+Click: Remove" data-jp="⇧+クリック：削除">⇧+Click: Remove</span>
+                    </span>
+                    <span class="hint-mobile">
+                        <span data-en="👆 Tap: Add point" data-jp="👆 タップ：追加">👆 Tap: Add point</span><br>
+                        <span data-en="🗑️ Delete btn: Remove" data-jp="🗑️ 削除ボタン：削除">🗑️ Delete btn: Remove</span>
+                    </span>
+                </div>
             </div>
-        </div>
 
-        <div class="ctrl-section">
-            <span class="ctrl-label" data-en="Background Map" data-jp="背景地図">Background Map</span>
-            <select id="map-style-select" onchange="changeMapStyle()">
-                <option value="osm" data-en="OSM (Color)" data-jp="OSM（カラー）">OSM (Color)</option>
-                <option value="osm-gray" data-en="OSM (Grayscale)" data-jp="OSM（グレー）">OSM (Grayscale)</option>
-                <option value="google-road" data-en="Google Roadmap" data-jp="Googleロードマップ" disabled>Google Roadmap</option>
-                <option value="google-road-gray" data-en="Google Roadmap (Gray)" data-jp="Googleロードマップ（グレー）" disabled>Google Roadmap (Gray)</option>
-                <option value="google-sat" data-en="Google Satellite" data-jp="Google衛星画像" disabled>Google Satellite</option>
-            </select>
-        </div>
-
-        <div class="ctrl-section">
-            <span class="ctrl-label" data-en="Color Mode" data-jp="色分けモード">Color Mode</span>
-            <select id="color-mode-select" onchange="onColorModeChange()">
-                <option value="none" data-en="None" data-jp="なし">None</option>
-                <option value="area" data-en="Area Ratio" data-jp="面積比">Area Ratio</option>
-                <option value="slope" data-en="Max Slope (GSI DEM)" data-jp="最大傾斜度（国土地理院DEM）">Max Slope (GSI DEM)</option>
-                <option value="avg-slope" data-en="Avg Slope (GSI DEM)" data-jp="平均傾斜度（国土地理院DEM）">Avg Slope (GSI DEM)</option>
-            </select>
-            <div style="margin-top:6px;">
-                <span class="ctrl-label" data-en="Opacity" data-jp="透過度">Opacity</span>
-                <input type="range" id="opacity-slider" min="5" max="90" value="40" oninput="updateVoronoi()">
+            <div class="ctrl-section">
+                <span class="ctrl-label" data-en="Background Map" data-jp="背景地図">Background Map</span>
+                <select id="map-style-select" onchange="changeMapStyle()">
+                    <option value="osm"           data-en="OSM (Color)"           data-jp="OSM（カラー）">OSM (Color)</option>
+                    <option value="osm-gray"       data-en="OSM (Grayscale)"       data-jp="OSM（グレー）">OSM (Grayscale)</option>
+                    <option value="google-road"     data-en="Google Roadmap"        data-jp="Googleロードマップ"       disabled>Google Roadmap</option>
+                    <option value="google-road-gray" data-en="Google Roadmap (Gray)" data-jp="Googleロードマップ（グレー）" disabled>Google Roadmap (Gray)</option>
+                    <option value="google-sat"      data-en="Google Satellite"      data-jp="Google衛星画像"           disabled>Google Satellite</option>
+                </select>
             </div>
-        </div>
 
-        <div class="ctrl-section">
-            <span class="ctrl-label" data-en="Import JSON (.json)" data-jp="JSON読み込み">Import JSON (.json)</span>
-            <input type="file" id="json-upload" accept=".json">
-        </div>
-    </div>
+            <div class="ctrl-section">
+                <span class="ctrl-label" data-en="Color Mode" data-jp="色分けモード">Color Mode</span>
+                <select id="color-mode-select" onchange="onColorModeChange()">
+                    <option value="none"      data-en="None"                 data-jp="なし">None</option>
+                    <option value="area"      data-en="Area Ratio"           data-jp="面積比">Area Ratio</option>
+                    <option value="slope"     data-en="Max Slope (GSI DEM)"  data-jp="最大傾斜度（国土地理院DEM）">Max Slope (GSI DEM)</option>
+                    <option value="avg-slope" data-en="Avg Slope (GSI DEM)"  data-jp="平均傾斜度（国土地理院DEM）">Avg Slope (GSI DEM)</option>
+                </select>
+                <div style="margin-top:8px;">
+                    <span class="ctrl-label" data-en="Opacity" data-jp="透過度">Opacity</span>
+                    <input type="range" id="opacity-slider" min="5" max="90" value="40" oninput="updateVoronoi()">
+                </div>
+            </div>
 
+            <div class="ctrl-section">
+                <span class="ctrl-label" data-en="Import JSON (.json)" data-jp="JSON読み込み">Import JSON (.json)</span>
+                <input type="file" id="json-upload" accept=".json">
+            </div>
+        </div><!-- /panel-body -->
+    </div><!-- /control-panel -->
+
+    <!-- Delete mode toggle (mobile) -->
+    <button id="delete-mode-btn" onclick="toggleDeleteMode(event)" title="削除モード">🗑️</button>
+
+    <!-- Legend -->
     <div id="legend">
         <div id="legend-title" style="font-weight:bold; margin-bottom:2px;"></div>
         <canvas id="legend-bar" width="160" height="14"></canvas>
@@ -107,10 +276,12 @@
         </div>
     </div>
 
+    <!-- Elevation loading -->
     <div id="slope-loading">
-        <span data-en="Loading elevation data..." data-jp="標高データ読み込み中...">Loading elevation data...</span>
+        <span data-en="Loading elevation data…" data-jp="標高データ読み込み中…">Loading elevation data…</span>
     </div>
-</div>
+
+</div><!-- /map -->
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://d3js.org/d3.v7.min.js"></script>
@@ -122,14 +293,17 @@
 const GOOGLE_API_KEY = "__GOOGLE_MAPS_API_KEY__";
 
 // ── State ─────────────────────────────────────────────────────────────────────
-let currentLang = localStorage.getItem('lang') || 'en';
-let colorMode = 'none';
-let demCache = {};      // key: "z/x/y", value: 256×256 float array
-let maxSlopeByIndex = {};  // populated after slope calc
-let avgSlopeByIndex = {};  // populated after slope calc
-let lastPolyData = []; // { id, area, poly }
+let currentLang  = localStorage.getItem('lang') || 'en';
+let colorMode    = 'none';
+let deleteMode   = false;
+let demCache     = {};
+let maxSlopeByIndex = {};
+let avgSlopeByIndex = {};
+let lastPolyData = [];
 let googleLayersReady = false;
 let googleRoadmap, googleSatellite, googleRoadGray;
+
+const isMobile = () => window.matchMedia('(max-width: 640px)').matches;
 
 let shops = [
     { lat: 35.6585, lng: 139.7010, id: 1 },
@@ -137,7 +311,7 @@ let shops = [
     { lat: 35.6575, lng: 139.7040, id: 3 }
 ];
 
-// ── Map setup ──────────────────────────────────────────────────────────────────
+// ── Map ───────────────────────────────────────────────────────────────────────
 const map = L.map('map', { doubleClickZoom: false }).setView([35.6581, 139.7017], 15);
 
 const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -146,11 +320,11 @@ const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png
 });
 osmLayer.addTo(map);
 
-// ── SVG overlay ────────────────────────────────────────────────────────────────
+// ── SVG overlay ───────────────────────────────────────────────────────────────
 const svg = d3.select(map.getPanes().overlayPane).append("svg");
-const g = svg.append("g").attr("class", "leaflet-zoom-hide");
+const g   = svg.append("g").attr("class", "leaflet-zoom-hide");
 
-// ── Area calculation ───────────────────────────────────────────────────────────
+// ── Area calculation ──────────────────────────────────────────────────────────
 function calcSphericalArea(latLngs) {
     const R = 6378137;
     let area = 0;
@@ -162,7 +336,7 @@ function calcSphericalArea(latLngs) {
     return Math.abs(area * R * R / 2);
 }
 
-// ── DEM tile utilities ─────────────────────────────────────────────────────────
+// ── DEM tile utilities ────────────────────────────────────────────────────────
 const DEM_ZOOM = 14;
 const DEM_SOURCES = [
     'https://cyberjapandata.gsi.go.jp/xyz/dem5a/{z}/{x}/{y}.txt',
@@ -189,7 +363,6 @@ function lngLatToPixelInTile(lng, lat, z, tx, ty) {
 async function fetchDemTile(z, tx, ty) {
     const key = `${z}/${tx}/${ty}`;
     if (demCache[key] !== undefined) return demCache[key];
-
     for (const src of DEM_SOURCES) {
         try {
             const url = src.replace('{z}', z).replace('{x}', tx).replace('{y}', ty);
@@ -215,7 +388,6 @@ async function fetchDemTile(z, tx, ty) {
     return null;
 }
 
-// Returns elevation (m) at lat/lng using DEM tiles, or null
 async function getElevation(lat, lng) {
     const { tx, ty } = lngLatToTileXY(lng, lat, DEM_ZOOM);
     const data = await fetchDemTile(DEM_ZOOM, tx, ty);
@@ -224,7 +396,6 @@ async function getElevation(lat, lng) {
     return data[py][px];
 }
 
-// Haversine distance in meters
 function haversineDist(lat1, lng1, lat2, lng2) {
     const R = 6378137, rad = Math.PI / 180;
     const dLat = (lat2 - lat1) * rad, dLng = (lng2 - lng1) * rad;
@@ -232,7 +403,6 @@ function haversineDist(lat1, lng1, lat2, lng2) {
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// Point-in-polygon test (ray casting)
 function pointInPoly(px, py, poly) {
     let inside = false;
     for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
@@ -242,75 +412,50 @@ function pointInPoly(px, py, poly) {
     return inside;
 }
 
-// Calculate max and average slope (degrees) for a polygon given as [[lng,lat], ...]
-// Returns { max, avg } both in degrees.
 async function calcSlopeStats(polyLatLng) {
     const lats = polyLatLng.map(p => p[1]);
     const lngs = polyLatLng.map(p => p[0]);
     const minLat = Math.min(...lats), maxLat = Math.max(...lats);
     const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
-
-    const SAMPLES = 8; // 8×8 = 64 sample points
+    const SAMPLES = 8;
     const dlat = (maxLat - minLat) / (SAMPLES - 1);
     const dlng = (maxLng - minLng) / (SAMPLES - 1);
-
-    // Build elevation grid (fetch once, reuse for both max and avg)
     const grid = [];
     for (let row = 0; row < SAMPLES; row++) {
         const gr = [];
         for (let col = 0; col < SAMPLES; col++) {
-            const lat = minLat + row * dlat;
-            const lng = minLng + col * dlng;
-            if (pointInPoly(lng, lat, polyLatLng)) {
-                gr.push({ lat, lng, elev: await getElevation(lat, lng) });
-            } else {
-                gr.push({ lat, lng, elev: null });
-            }
+            const lat = minLat + row * dlat, lng = minLng + col * dlng;
+            gr.push(pointInPoly(lng, lat, polyLatLng)
+                ? { lat, lng, elev: await getElevation(lat, lng) }
+                : { lat, lng, elev: null });
         }
         grid.push(gr);
     }
-
     let maxRatio = 0, sumRatio = 0, count = 0;
     for (let row = 0; row < SAMPLES; row++) {
         for (let col = 0; col < SAMPLES; col++) {
             const c = grid[row][col];
             if (c.elev === null) continue;
-            // Right neighbor
-            if (col + 1 < SAMPLES) {
-                const n = grid[row][col + 1];
-                if (n.elev !== null) {
-                    const dist = haversineDist(c.lat, c.lng, n.lat, n.lng);
-                    if (dist > 0) {
-                        const r = Math.abs(n.elev - c.elev) / dist;
-                        maxRatio = Math.max(maxRatio, r);
-                        sumRatio += r; count++;
-                    }
-                }
-            }
-            // Bottom neighbor
-            if (row + 1 < SAMPLES) {
-                const n = grid[row + 1][col];
-                if (n.elev !== null) {
-                    const dist = haversineDist(c.lat, c.lng, n.lat, n.lng);
-                    if (dist > 0) {
-                        const r = Math.abs(n.elev - c.elev) / dist;
-                        maxRatio = Math.max(maxRatio, r);
-                        sumRatio += r; count++;
-                    }
+            for (const [nr, nc] of [[row, col+1], [row+1, col]]) {
+                if (nr >= SAMPLES || nc >= SAMPLES) continue;
+                const n = grid[nr][nc];
+                if (n.elev === null) continue;
+                const dist = haversineDist(c.lat, c.lng, n.lat, n.lng);
+                if (dist > 0) {
+                    const r = Math.abs(n.elev - c.elev) / dist;
+                    maxRatio = Math.max(maxRatio, r);
+                    sumRatio += r; count++;
                 }
             }
         }
     }
     const toDeg = r => Math.atan(r) * (180 / Math.PI);
-    return {
-        max: toDeg(maxRatio),
-        avg: count > 0 ? toDeg(sumRatio / count) : 0
-    };
+    return { max: toDeg(maxRatio), avg: count > 0 ? toDeg(sumRatio / count) : 0 };
 }
 
-// ── Color scales ───────────────────────────────────────────────────────────────
+// ── Color scales ──────────────────────────────────────────────────────────────
 const areaColorScale  = d3.scaleSequential(d3.interpolateYlOrRd).domain([0, 1]);
-const slopeColorScale = d3.scaleSequential(d3.interpolateBlues).domain([0, 1]); // light=gentle, dark=steep
+const slopeColorScale = d3.scaleSequential(d3.interpolateBlues).domain([0, 1]);
 
 function cellFill(idx, opacity) {
     if (colorMode === 'none') return `rgba(231,76,60,${opacity * 0.3})`;
@@ -333,24 +478,20 @@ function cellFill(idx, opacity) {
     return `rgba(128,128,128,${opacity * 0.5})`;
 }
 
-// ── Legend ─────────────────────────────────────────────────────────────────────
+// ── Legend ────────────────────────────────────────────────────────────────────
 function updateLegend() {
     const legend = document.getElementById('legend');
     if (colorMode === 'none') { legend.style.display = 'none'; return; }
     legend.style.display = 'block';
-
     const canvas = document.getElementById('legend-bar');
     const ctx = canvas.getContext('2d');
     const w = canvas.width, h = canvas.height;
     const scale = colorMode === 'area' ? areaColorScale : slopeColorScale;
-
     for (let x = 0; x < w; x++) {
-        const t = x / (w - 1);
-        const c = d3.color(scale(t));
+        const c = d3.color(scale(x / (w - 1)));
         ctx.fillStyle = `rgb(${c.r},${c.g},${c.b})`;
         ctx.fillRect(x, 0, 1, h);
     }
-
     if (colorMode === 'area') {
         const areas = lastPolyData.map(d => d.area);
         document.getElementById('legend-title').textContent = currentLang === 'jp' ? '面積比' : 'Area Ratio';
@@ -359,17 +500,14 @@ function updateLegend() {
     } else {
         const slopeMap = colorMode === 'slope' ? maxSlopeByIndex : avgSlopeByIndex;
         const slopes = Object.values(slopeMap).filter(v => v !== null);
-        const titleMap = {
-            slope:     { en: 'Max Slope (°)',  jp: '最大傾斜度 (°)' },
-            'avg-slope': { en: 'Avg Slope (°)', jp: '平均傾斜度 (°)' }
-        };
-        document.getElementById('legend-title').textContent = titleMap[colorMode][currentLang];
+        const titles = { slope: { en: 'Max Slope (°)', jp: '最大傾斜度 (°)' }, 'avg-slope': { en: 'Avg Slope (°)', jp: '平均傾斜度 (°)' } };
+        document.getElementById('legend-title').textContent = titles[colorMode][currentLang];
         document.getElementById('legend-min').textContent = slopes.length ? Math.min(...slopes).toFixed(1) + '°' : '';
         document.getElementById('legend-max').textContent = slopes.length ? Math.max(...slopes).toFixed(1) + '°' : '';
     }
 }
 
-// ── Voronoi rendering ──────────────────────────────────────────────────────────
+// ── Voronoi ───────────────────────────────────────────────────────────────────
 function updateVoronoi() {
     const opacity = document.getElementById('opacity-slider').value / 100;
     const bounds = map.getBounds();
@@ -381,53 +519,55 @@ function updateVoronoi() {
     g.attr("transform", `translate(${-tl.x},${-tl.y})`);
     g.selectAll("*").remove();
 
-    if (shops.length < 2) {
-        renderRanking([]);
-        updateLegend();
-        return;
-    }
+    if (shops.length < 2) { renderRanking([]); updateLegend(); return; }
 
     const pts = shops.map(s => {
         const p = map.latLngToLayerPoint([s.lat, s.lng]);
         return [p.x, p.y];
     });
     const delaunay = d3.Delaunay.from(pts);
-    const voronoi = delaunay.voronoi([tl.x, tl.y, br.x, br.y]);
+    const voronoi  = delaunay.voronoi([tl.x, tl.y, br.x, br.y]);
 
     lastPolyData = [];
     let i = 0;
     for (const poly of voronoi.cellPolygons()) {
         const latLngs = poly.map(p => map.layerPointToLatLng([p[0], p[1]]));
-        const area = calcSphericalArea(latLngs);
+        const area  = calcSphericalArea(latLngs);
         const polyLL = poly.map(p => { const ll = map.layerPointToLatLng([p[0], p[1]]); return [ll.lng, ll.lat]; });
         lastPolyData.push({ id: shops[i].id, area, poly, polyLL, idx: i });
         i++;
     }
 
     lastPolyData.forEach((d, idx) => {
-        g.append("path")
-            .attr("d", d3.line()(d.poly))
-            .attr("stroke", "#2c3e50")
-            .attr("stroke-width", 2)
-            .attr("fill", cellFill(idx, opacity));
+        g.append("path").attr("d", d3.line()(d.poly))
+         .attr("stroke", "#2c3e50").attr("stroke-width", 2)
+         .attr("fill", cellFill(idx, opacity));
     });
 
-    // Draw shop markers
+    // Marker radius: larger on mobile for easier tapping
+    const R_MARKER = isMobile() ? 14 : 10;
+
     pts.forEach((p, index) => {
-        const grp = g.append("g").style("cursor", "pointer")
+        const grp = g.append("g").style("cursor", deleteMode ? "crosshair" : "pointer")
             .on("click", (event) => {
-                if (event.shiftKey) {
+                if (event.shiftKey || deleteMode) {
                     event.stopPropagation();
                     shops.splice(index, 1);
                     maxSlopeByIndex = {}; avgSlopeByIndex = {};
                     updateVoronoi();
                 }
             });
-        grp.append("circle").attr("cx", p[0]).attr("cy", p[1]).attr("r", 10)
-           .attr("fill", "#e74c3c").attr("stroke", "#fff").attr("stroke-width", 2);
-        grp.append("text").attr("x", p[0]).attr("y", p[1])
+        grp.append("circle")
+           .attr("cx", p[0]).attr("cy", p[1]).attr("r", R_MARKER)
+           .attr("fill", "#e74c3c")
+           .attr("stroke", "#fff")
+           .attr("stroke-width", 2)
+           .attr("opacity", deleteMode ? 0.6 : 1);
+        grp.append("text")
+           .attr("x", p[0]).attr("y", p[1])
            .attr("text-anchor", "middle").attr("dominant-baseline", "central")
-           .attr("font-size", "11px").attr("font-weight", "bold").attr("fill", "white")
+           .attr("font-size", isMobile() ? "12px" : "11px")
+           .attr("font-weight", "bold").attr("fill", "white")
            .style("pointer-events", "none").text(shops[index].id);
     });
 
@@ -444,7 +584,7 @@ function renderRanking(data) {
         const areaLabel = currentLang === 'jp' ? '面積' : 'Area';
         const maxLabel  = currentLang === 'jp' ? '最大傾斜' : 'Max Slope';
         const avgLabel  = currentLang === 'jp' ? '平均傾斜' : 'Avg Slope';
-        const fmt = (v) => v !== null && v !== undefined ? v.toFixed(1) + '°' : 'N/A';
+        const fmt = v => (v !== null && v !== undefined) ? v.toFixed(1) + '°' : 'N/A';
         const slopeStr = hasSlopeData
             ? `<span class="slope-val">${maxLabel}: ${fmt(maxSlopeByIndex[d.idx])} / ${avgLabel}: ${fmt(avgSlopeByIndex[d.idx])}</span>`
             : '';
@@ -457,11 +597,10 @@ function formatArea(m2) {
     return m2 >= 1e6 ? (m2 / 1e6).toFixed(2) + " km²" : Math.round(m2).toLocaleString() + " m²";
 }
 
-// ── Color mode change ──────────────────────────────────────────────────────────
+// ── Color mode ────────────────────────────────────────────────────────────────
 function onColorModeChange() {
     colorMode = document.getElementById('color-mode-select').value;
     if (colorMode === 'slope' || colorMode === 'avg-slope') {
-        // Reuse cached data if already calculated; recalc only when cache is empty
         if (Object.keys(maxSlopeByIndex).length === lastPolyData.length && lastPolyData.length > 0) {
             updateVoronoi();
         } else {
@@ -473,8 +612,7 @@ function onColorModeChange() {
 }
 
 async function calcAllSlopes() {
-    maxSlopeByIndex = {};
-    avgSlopeByIndex = {};
+    maxSlopeByIndex = {}; avgSlopeByIndex = {};
     if (lastPolyData.length === 0) { updateVoronoi(); return; }
     const loading = document.getElementById('slope-loading');
     loading.style.display = 'block';
@@ -492,52 +630,36 @@ async function calcAllSlopes() {
     updateVoronoi();
 }
 
-// ── Background map style ───────────────────────────────────────────────────────
-const GRAY_STYLES = [
-    { elementType: "all", stylers: [{ saturation: -100 }, { lightness: 10 }] }
-];
+// ── Background map ────────────────────────────────────────────────────────────
+const GRAY_STYLES = [{ elementType: "all", stylers: [{ saturation: -100 }, { lightness: 10 }] }];
 
 function changeMapStyle() {
     const val = document.getElementById('map-style-select').value;
-    const tilePanes = document.querySelectorAll('.leaflet-tile-pane');
-
-    // Remove grayscale CSS filter
-    tilePanes.forEach(p => p.classList.remove('grayscale'));
-
-    // Remove all base layers
+    document.querySelectorAll('.leaflet-tile-pane').forEach(p => p.classList.remove('grayscale'));
     [osmLayer, googleRoadmap, googleSatellite, googleRoadGray].forEach(l => {
         if (l && map.hasLayer(l)) map.removeLayer(l);
     });
-
     if (val === 'osm') {
         osmLayer.addTo(map);
     } else if (val === 'osm-gray') {
         osmLayer.addTo(map);
-        // Apply grayscale after tile pane is ready
-        setTimeout(() => {
-            document.querySelectorAll('.leaflet-tile-pane').forEach(p => p.classList.add('grayscale'));
-        }, 50);
-    } else if (val === 'google-road' || val === 'google-road-gray' || val === 'google-sat') {
-        if (val === 'google-road') googleRoadmap.addTo(map);
-        else if (val === 'google-road-gray') googleRoadGray.addTo(map);
-        else googleSatellite.addTo(map);
-    }
+        setTimeout(() => document.querySelectorAll('.leaflet-tile-pane').forEach(p => p.classList.add('grayscale')), 50);
+    } else if (val === 'google-road')      { googleRoadmap.addTo(map); }
+      else if (val === 'google-road-gray') { googleRoadGray.addTo(map); }
+      else if (val === 'google-sat')       { googleSatellite.addTo(map); }
 }
 
-// ── Google Maps loader ─────────────────────────────────────────────────────────
+// ── Google Maps ───────────────────────────────────────────────────────────────
 window.initGoogleLayers = function () {
     try {
-        googleRoadmap  = L.gridLayer.googleMutant({ type: 'roadmap' });
+        googleRoadmap   = L.gridLayer.googleMutant({ type: 'roadmap' });
         googleSatellite = L.gridLayer.googleMutant({ type: 'satellite' });
         googleRoadGray  = L.gridLayer.googleMutant({ type: 'roadmap', styles: GRAY_STYLES });
         googleLayersReady = true;
-        // Enable Google options in the selector
         document.querySelectorAll('#map-style-select option[value^="google"]')
             .forEach(o => o.disabled = false);
-        console.info('[GoogleMaps] Layers ready.');
     } catch (e) {
-        console.error('[GoogleMaps] initGoogleLayers failed:', e);
-        showGoogleError('Google Maps の初期化に失敗しました: ' + e.message);
+        showGoogleError('Google Maps 初期化失敗: ' + e.message);
     }
 };
 
@@ -548,7 +670,7 @@ function showGoogleError(msg) {
         el.id = 'google-error';
         el.style.cssText = 'position:fixed;bottom:10px;left:50%;transform:translateX(-50%);' +
             'background:#c0392b;color:#fff;padding:10px 18px;border-radius:8px;' +
-            'font-size:12px;z-index:9999;max-width:400px;text-align:center;';
+            'font-size:12px;z-index:9999;max-width:90vw;text-align:center;';
         document.body.appendChild(el);
     }
     el.textContent = msg;
@@ -557,38 +679,59 @@ function showGoogleError(msg) {
 
 function loadGoogleMaps() {
     if (GOOGLE_API_KEY === "__GOOGLE_MAPS_API_KEY__" || GOOGLE_API_KEY === "") {
-        // Key not injected — disable Google options in UI
         document.querySelectorAll('#map-style-select option[value^="google"]')
             .forEach(o => { o.disabled = true; o.textContent += ' (APIキー未設定)'; });
         return;
     }
     const s = document.createElement('script');
-    // NOTE: loading=async を除去。Leaflet.GoogleMutant は callback 方式でのみ動作する
     s.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_API_KEY}&callback=initGoogleLayers`;
-    s.async = true;
-    s.defer = true;
+    s.async = true; s.defer = true;
     s.onerror = () => {
-        console.error('[GoogleMaps] Script failed to load. Check: 1) Maps JavaScript API is enabled, 2) Billing is active, 3) Key restrictions allow this domain.');
-        showGoogleError('Google Maps の読み込み失敗。APIキー・請求設定・ドメイン制限を確認してください。');
+        showGoogleError('Google Maps 読み込み失敗。APIキー・請求設定・ドメイン制限を確認してください。');
         document.querySelectorAll('#map-style-select option[value^="google"]')
             .forEach(o => o.disabled = true);
     };
     document.head.appendChild(s);
 }
 
-// ── Language ───────────────────────────────────────────────────────────────────
+// ── Mobile UI ─────────────────────────────────────────────────────────────────
+function toggleSidebar() {
+    document.getElementById('sidebar').classList.toggle('open');
+    document.getElementById('sidebar-backdrop').classList.toggle('visible');
+}
+function closeSidebar() {
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('sidebar-backdrop').classList.remove('visible');
+}
+function togglePanel(e) {
+    if (e) e.stopPropagation();
+    const panel = document.getElementById('ui-panel');
+    const btn   = document.getElementById('panel-toggle');
+    panel.classList.toggle('collapsed');
+    btn.textContent = panel.classList.contains('collapsed') ? '⚙' : '✕';
+}
+function toggleDeleteMode(e) {
+    if (e) e.stopPropagation();
+    deleteMode = !deleteMode;
+    const btn = document.getElementById('delete-mode-btn');
+    btn.classList.toggle('active', deleteMode);
+    btn.title = deleteMode
+        ? (currentLang === 'jp' ? '追加モードに戻す' : 'Back to add mode')
+        : (currentLang === 'jp' ? '削除モード' : 'Delete mode');
+    updateVoronoi();
+}
+
+// ── Language ──────────────────────────────────────────────────────────────────
 function toggleLanguage(e) {
     if (e) e.stopPropagation();
     currentLang = currentLang === 'en' ? 'jp' : 'en';
     localStorage.setItem('lang', currentLang);
     updateUI();
 }
-
 function updateUI() {
     document.querySelectorAll('[data-en]').forEach(el => {
         el.innerText = el.getAttribute(`data-${currentLang}`);
     });
-    // Update select option labels
     document.querySelectorAll('select option[data-en]').forEach(opt => {
         opt.textContent = opt.getAttribute(`data-${currentLang}`);
     });
@@ -597,25 +740,37 @@ function updateUI() {
     updateVoronoi();
 }
 
-// ── Initialize ─────────────────────────────────────────────────────────────────
-L.DomEvent.disableClickPropagation(document.getElementById('ui-panel'));
+// ── Initialize ────────────────────────────────────────────────────────────────
+// Prevent map clicks from propagating through UI elements
+[document.getElementById('ui-panel'),
+ document.getElementById('hamburger-btn'),
+ document.getElementById('delete-mode-btn')
+].forEach(el => L.DomEvent.disableClickPropagation(el));
 
 document.getElementById('json-upload').addEventListener('change', function (e) {
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = function (ev) {
+    reader.onload = ev => {
         try {
             shops = JSON.parse(ev.target.result);
             maxSlopeByIndex = {}; avgSlopeByIndex = {};
             updateVoronoi();
-            if (shops.length > 0) map.panTo([shops[0].lat, shops[0].lng]);
+            if (shops.length > 0) {
+                const lats = shops.map(s => s.lat), lngs = shops.map(s => s.lng);
+                const bounds = L.latLngBounds(
+                    [Math.min(...lats), Math.min(...lngs)],
+                    [Math.max(...lats), Math.max(...lngs)]
+                );
+                map.fitBounds(bounds, { padding: [40, 40] });
+            }
         } catch (_) { alert("Invalid JSON"); }
     };
     reader.readAsText(file);
 });
 
-map.on("click", (e) => {
+map.on("click", e => {
+    if (deleteMode) return; // deletion handled on marker click
     if (!e.originalEvent.shiftKey) {
         const newId = shops.length > 0 ? Math.max(...shops.map(s => s.id)) + 1 : 1;
         shops.push({ lat: e.latlng.lat, lng: e.latlng.lng, id: newId });
@@ -629,6 +784,11 @@ map.on("click", (e) => {
 });
 
 map.on("viewreset move", updateVoronoi);
+
+// Collapse panel by default on mobile
+if (isMobile()) {
+    document.getElementById('ui-panel').classList.add('collapsed');
+}
 
 loadGoogleMaps();
 updateUI();
