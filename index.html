@@ -84,6 +84,7 @@
                 <option value="none" data-en="None" data-jp="なし">None</option>
                 <option value="area" data-en="Area Ratio" data-jp="面積比">Area Ratio</option>
                 <option value="slope" data-en="Max Slope (GSI DEM)" data-jp="最大傾斜度（国土地理院DEM）">Max Slope (GSI DEM)</option>
+                <option value="avg-slope" data-en="Avg Slope (GSI DEM)" data-jp="平均傾斜度（国土地理院DEM）">Avg Slope (GSI DEM)</option>
             </select>
             <div style="margin-top:6px;">
                 <span class="ctrl-label" data-en="Opacity" data-jp="透過度">Opacity</span>
@@ -123,9 +124,9 @@ const GOOGLE_API_KEY = "__GOOGLE_MAPS_API_KEY__";
 // ── State ─────────────────────────────────────────────────────────────────────
 let currentLang = localStorage.getItem('lang') || 'en';
 let colorMode = 'none';
-let slopeCache = {};   // key: cell index, value: max slope degrees
-let demCache = {};     // key: "z/x/y", value: 256×256 float array
-let slopeByIndex = {}; // populated after slope calc
+let demCache = {};      // key: "z/x/y", value: 256×256 float array
+let maxSlopeByIndex = {};  // populated after slope calc
+let avgSlopeByIndex = {};  // populated after slope calc
 let lastPolyData = []; // { id, area, poly }
 let googleLayersReady = false;
 let googleRoadmap, googleSatellite, googleRoadGray;
@@ -241,9 +242,9 @@ function pointInPoly(px, py, poly) {
     return inside;
 }
 
-// Calculate max slope (degrees) for a polygon given as [[lng,lat], ...]
-async function calcMaxSlope(polyLatLng) {
-    // polyLatLng: [[lng, lat], ...]  (d3 voronoi output in layer-point space → converted)
+// Calculate max and average slope (degrees) for a polygon given as [[lng,lat], ...]
+// Returns { max, avg } both in degrees.
+async function calcSlopeStats(polyLatLng) {
     const lats = polyLatLng.map(p => p[1]);
     const lngs = polyLatLng.map(p => p[0]);
     const minLat = Math.min(...lats), maxLat = Math.max(...lats);
@@ -253,7 +254,7 @@ async function calcMaxSlope(polyLatLng) {
     const dlat = (maxLat - minLat) / (SAMPLES - 1);
     const dlng = (maxLng - minLng) / (SAMPLES - 1);
 
-    // Build a grid of elevations
+    // Build elevation grid (fetch once, reuse for both max and avg)
     const grid = [];
     for (let row = 0; row < SAMPLES; row++) {
         const gr = [];
@@ -269,30 +270,42 @@ async function calcMaxSlope(polyLatLng) {
         grid.push(gr);
     }
 
-    let maxSlope = 0;
+    let maxRatio = 0, sumRatio = 0, count = 0;
     for (let row = 0; row < SAMPLES; row++) {
         for (let col = 0; col < SAMPLES; col++) {
             const c = grid[row][col];
             if (c.elev === null) continue;
-            // Check right neighbor
+            // Right neighbor
             if (col + 1 < SAMPLES) {
                 const n = grid[row][col + 1];
                 if (n.elev !== null) {
                     const dist = haversineDist(c.lat, c.lng, n.lat, n.lng);
-                    if (dist > 0) maxSlope = Math.max(maxSlope, Math.abs(n.elev - c.elev) / dist);
+                    if (dist > 0) {
+                        const r = Math.abs(n.elev - c.elev) / dist;
+                        maxRatio = Math.max(maxRatio, r);
+                        sumRatio += r; count++;
+                    }
                 }
             }
-            // Check bottom neighbor
+            // Bottom neighbor
             if (row + 1 < SAMPLES) {
                 const n = grid[row + 1][col];
                 if (n.elev !== null) {
                     const dist = haversineDist(c.lat, c.lng, n.lat, n.lng);
-                    if (dist > 0) maxSlope = Math.max(maxSlope, Math.abs(n.elev - c.elev) / dist);
+                    if (dist > 0) {
+                        const r = Math.abs(n.elev - c.elev) / dist;
+                        maxRatio = Math.max(maxRatio, r);
+                        sumRatio += r; count++;
+                    }
                 }
             }
         }
     }
-    return Math.atan(maxSlope) * (180 / Math.PI);
+    const toDeg = r => Math.atan(r) * (180 / Math.PI);
+    return {
+        max: toDeg(maxRatio),
+        avg: count > 0 ? toDeg(sumRatio / count) : 0
+    };
 }
 
 // ── Color scales ───────────────────────────────────────────────────────────────
@@ -309,11 +322,12 @@ function cellFill(idx, opacity) {
         const c = d3.color(areaColorScale(t));
         return `rgba(${c.r},${c.g},${c.b},${opacity})`;
     }
-    if (colorMode === 'slope' && slopeByIndex[idx] !== undefined) {
-        const slopes = Object.values(slopeByIndex).filter(v => v !== null);
+    const slopeMap = colorMode === 'slope' ? maxSlopeByIndex : avgSlopeByIndex;
+    if ((colorMode === 'slope' || colorMode === 'avg-slope') && slopeMap[idx] !== undefined) {
+        const slopes = Object.values(slopeMap).filter(v => v !== null);
         if (slopes.length === 0) return `rgba(128,128,128,${opacity * 0.5})`;
         const mn = Math.min(...slopes), mx = Math.max(...slopes);
-        const t = mx > mn ? (slopeByIndex[idx] - mn) / (mx - mn) : 0.5;
+        const t = mx > mn ? (slopeMap[idx] - mn) / (mx - mn) : 0.5;
         const c = d3.color(slopeColorScale(t));
         return `rgba(${c.r},${c.g},${c.b},${opacity})`;
     }
@@ -329,11 +343,12 @@ function updateLegend() {
     const canvas = document.getElementById('legend-bar');
     const ctx = canvas.getContext('2d');
     const w = canvas.width, h = canvas.height;
-    const scale = colorMode === 'area' ? areaColorScale.domain([0,1]) : slopeColorScale;
+    const isSlope = colorMode === 'slope' || colorMode === 'avg-slope';
+    const scale = colorMode === 'area' ? areaColorScale.domain([0, 1]) : slopeColorScale;
 
     for (let x = 0; x < w; x++) {
         const t = x / (w - 1);
-        const c = d3.color(scale(colorMode === 'slope' ? 1 - t : t));
+        const c = d3.color(scale(isSlope ? 1 - t : t));
         ctx.fillStyle = `rgb(${c.r},${c.g},${c.b})`;
         ctx.fillRect(x, 0, 1, h);
     }
@@ -344,8 +359,13 @@ function updateLegend() {
         document.getElementById('legend-min').textContent = formatArea(Math.min(...areas));
         document.getElementById('legend-max').textContent = formatArea(Math.max(...areas));
     } else {
-        const slopes = Object.values(slopeByIndex).filter(v => v !== null);
-        document.getElementById('legend-title').textContent = currentLang === 'jp' ? '最大傾斜度 (°)' : 'Max Slope (°)';
+        const slopeMap = colorMode === 'slope' ? maxSlopeByIndex : avgSlopeByIndex;
+        const slopes = Object.values(slopeMap).filter(v => v !== null);
+        const titleMap = {
+            slope:     { en: 'Max Slope (°)',  jp: '最大傾斜度 (°)' },
+            'avg-slope': { en: 'Avg Slope (°)', jp: '平均傾斜度 (°)' }
+        };
+        document.getElementById('legend-title').textContent = titleMap[colorMode][currentLang];
         document.getElementById('legend-min').textContent = slopes.length ? Math.min(...slopes).toFixed(1) + '°' : '';
         document.getElementById('legend-max').textContent = slopes.length ? Math.max(...slopes).toFixed(1) + '°' : '';
     }
@@ -401,7 +421,7 @@ function updateVoronoi() {
                 if (event.shiftKey) {
                     event.stopPropagation();
                     shops.splice(index, 1);
-                    slopeByIndex = {};
+                    maxSlopeByIndex = {}; avgSlopeByIndex = {};
                     updateVoronoi();
                 }
             });
@@ -421,11 +441,15 @@ function renderRanking(data) {
     const list = d3.select("#rank-list");
     list.selectAll("*").remove();
     const sorted = [...data].sort((a, b) => b.area - a.area);
+    const hasSlopeData = Object.keys(maxSlopeByIndex).length > 0;
     sorted.forEach((d, idx) => {
         const areaLabel = currentLang === 'jp' ? '面積' : 'Area';
-        const slopeLabel = currentLang === 'jp' ? '最大傾斜' : 'Max Slope';
-        const slopeStr = (colorMode === 'slope' && slopeByIndex[d.idx] !== undefined)
-            ? `<span class="slope-val">${slopeLabel}: ${slopeByIndex[d.idx] !== null ? slopeByIndex[d.idx].toFixed(1) + '°' : 'N/A'}</span>` : '';
+        const maxLabel  = currentLang === 'jp' ? '最大傾斜' : 'Max Slope';
+        const avgLabel  = currentLang === 'jp' ? '平均傾斜' : 'Avg Slope';
+        const fmt = (v) => v !== null && v !== undefined ? v.toFixed(1) + '°' : 'N/A';
+        const slopeStr = hasSlopeData
+            ? `<span class="slope-val">${maxLabel}: ${fmt(maxSlopeByIndex[d.idx])} / ${avgLabel}: ${fmt(avgSlopeByIndex[d.idx])}</span>`
+            : '';
         list.append("div").attr("class", "rank-item")
             .html(`<b>Rank ${idx + 1}</b> (ID: ${d.id})<span class="area-val">${areaLabel}: ${formatArea(d.area)}</span>${slopeStr}`);
     });
@@ -438,23 +462,32 @@ function formatArea(m2) {
 // ── Color mode change ──────────────────────────────────────────────────────────
 function onColorModeChange() {
     colorMode = document.getElementById('color-mode-select').value;
-    if (colorMode === 'slope') {
-        calcAllSlopes();
+    if (colorMode === 'slope' || colorMode === 'avg-slope') {
+        // Reuse cached data if already calculated; recalc only when cache is empty
+        if (Object.keys(maxSlopeByIndex).length === lastPolyData.length && lastPolyData.length > 0) {
+            updateVoronoi();
+        } else {
+            calcAllSlopes();
+        }
     } else {
         updateVoronoi();
     }
 }
 
 async function calcAllSlopes() {
-    slopeByIndex = {};
+    maxSlopeByIndex = {};
+    avgSlopeByIndex = {};
     if (lastPolyData.length === 0) { updateVoronoi(); return; }
     const loading = document.getElementById('slope-loading');
     loading.style.display = 'block';
     for (const d of lastPolyData) {
         try {
-            slopeByIndex[d.idx] = await calcMaxSlope(d.polyLL);
+            const stats = await calcSlopeStats(d.polyLL);
+            maxSlopeByIndex[d.idx] = stats.max;
+            avgSlopeByIndex[d.idx] = stats.avg;
         } catch (_) {
-            slopeByIndex[d.idx] = null;
+            maxSlopeByIndex[d.idx] = null;
+            avgSlopeByIndex[d.idx] = null;
         }
     }
     loading.style.display = 'none';
@@ -576,7 +609,7 @@ document.getElementById('json-upload').addEventListener('change', function (e) {
     reader.onload = function (ev) {
         try {
             shops = JSON.parse(ev.target.result);
-            slopeByIndex = {};
+            maxSlopeByIndex = {}; avgSlopeByIndex = {};
             updateVoronoi();
             if (shops.length > 0) map.panTo([shops[0].lat, shops[0].lng]);
         } catch (_) { alert("Invalid JSON"); }
@@ -588,8 +621,8 @@ map.on("click", (e) => {
     if (!e.originalEvent.shiftKey) {
         const newId = shops.length > 0 ? Math.max(...shops.map(s => s.id)) + 1 : 1;
         shops.push({ lat: e.latlng.lat, lng: e.latlng.lng, id: newId });
-        slopeByIndex = {};
-        if (colorMode === 'slope') {
+        maxSlopeByIndex = {}; avgSlopeByIndex = {};
+        if (colorMode === 'slope' || colorMode === 'avg-slope') {
             calcAllSlopes();
         } else {
             updateVoronoi();
