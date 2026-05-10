@@ -72,9 +72,9 @@
             <select id="map-style-select" onchange="changeMapStyle()">
                 <option value="osm" data-en="OSM (Color)" data-jp="OSM（カラー）">OSM (Color)</option>
                 <option value="osm-gray" data-en="OSM (Grayscale)" data-jp="OSM（グレー）">OSM (Grayscale)</option>
-                <option value="google-road" data-en="Google Roadmap" data-jp="Googleロードマップ">Google Roadmap</option>
-                <option value="google-road-gray" data-en="Google Roadmap (Gray)" data-jp="Googleロードマップ（グレー）">Google Roadmap (Gray)</option>
-                <option value="google-sat" data-en="Google Satellite" data-jp="Google衛星画像">Google Satellite</option>
+                <option value="google-road" data-en="Google Roadmap" data-jp="Googleロードマップ" disabled>Google Roadmap</option>
+                <option value="google-road-gray" data-en="Google Roadmap (Gray)" data-jp="Googleロードマップ（グレー）" disabled>Google Roadmap (Gray)</option>
+                <option value="google-sat" data-en="Google Satellite" data-jp="Google衛星画像" disabled>Google Satellite</option>
             </select>
         </div>
 
@@ -487,14 +487,6 @@ function changeMapStyle() {
             document.querySelectorAll('.leaflet-tile-pane').forEach(p => p.classList.add('grayscale'));
         }, 50);
     } else if (val === 'google-road' || val === 'google-road-gray' || val === 'google-sat') {
-        if (!googleLayersReady) {
-            alert(currentLang === 'jp'
-                ? 'Google MapsのAPIキーが設定されていないか、まだ読み込み中です。'
-                : 'Google Maps API key not set or still loading.');
-            document.getElementById('map-style-select').value = 'osm';
-            osmLayer.addTo(map);
-            return;
-        }
         if (val === 'google-road') googleRoadmap.addTo(map);
         else if (val === 'google-road-gray') googleRoadGray.addTo(map);
         else googleSatellite.addTo(map);
@@ -503,17 +495,53 @@ function changeMapStyle() {
 
 // ── Google Maps loader ─────────────────────────────────────────────────────────
 window.initGoogleLayers = function () {
-    googleRoadmap = L.gridLayer.googleMutant({ type: 'roadmap' });
-    googleSatellite = L.gridLayer.googleMutant({ type: 'satellite' });
-    googleRoadGray = L.gridLayer.googleMutant({ type: 'roadmap', styles: GRAY_STYLES });
-    googleLayersReady = true;
+    try {
+        googleRoadmap  = L.gridLayer.googleMutant({ type: 'roadmap' });
+        googleSatellite = L.gridLayer.googleMutant({ type: 'satellite' });
+        googleRoadGray  = L.gridLayer.googleMutant({ type: 'roadmap', styles: GRAY_STYLES });
+        googleLayersReady = true;
+        // Enable Google options in the selector
+        document.querySelectorAll('#map-style-select option[value^="google"]')
+            .forEach(o => o.disabled = false);
+        console.info('[GoogleMaps] Layers ready.');
+    } catch (e) {
+        console.error('[GoogleMaps] initGoogleLayers failed:', e);
+        showGoogleError('Google Maps の初期化に失敗しました: ' + e.message);
+    }
 };
 
+function showGoogleError(msg) {
+    let el = document.getElementById('google-error');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'google-error';
+        el.style.cssText = 'position:fixed;bottom:10px;left:50%;transform:translateX(-50%);' +
+            'background:#c0392b;color:#fff;padding:10px 18px;border-radius:8px;' +
+            'font-size:12px;z-index:9999;max-width:400px;text-align:center;';
+        document.body.appendChild(el);
+    }
+    el.textContent = msg;
+    setTimeout(() => el.remove(), 8000);
+}
+
 function loadGoogleMaps() {
-    if (GOOGLE_API_KEY === "__GOOGLE_MAPS_API_KEY__" || GOOGLE_API_KEY === "") return;
+    if (GOOGLE_API_KEY === "__GOOGLE_MAPS_API_KEY__" || GOOGLE_API_KEY === "") {
+        // Key not injected — disable Google options in UI
+        document.querySelectorAll('#map-style-select option[value^="google"]')
+            .forEach(o => { o.disabled = true; o.textContent += ' (APIキー未設定)'; });
+        return;
+    }
     const s = document.createElement('script');
-    s.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_API_KEY}&loading=async&callback=initGoogleLayers`;
-    s.async = true; s.defer = true;
+    // NOTE: loading=async を除去。Leaflet.GoogleMutant は callback 方式でのみ動作する
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_API_KEY}&callback=initGoogleLayers`;
+    s.async = true;
+    s.defer = true;
+    s.onerror = () => {
+        console.error('[GoogleMaps] Script failed to load. Check: 1) Maps JavaScript API is enabled, 2) Billing is active, 3) Key restrictions allow this domain.');
+        showGoogleError('Google Maps の読み込み失敗。APIキー・請求設定・ドメイン制限を確認してください。');
+        document.querySelectorAll('#map-style-select option[value^="google"]')
+            .forEach(o => o.disabled = true);
+    };
     document.head.appendChild(s);
 }
 
