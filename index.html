@@ -309,8 +309,8 @@ async function calcSlopeStats(polyLatLng) {
 }
 
 // ── Color scales ───────────────────────────────────────────────────────────────
-const areaColorScale = d3.scaleSequential(d3.interpolateYlOrRd);
-const slopeColorScale = d3.scaleSequential(d3.interpolateRdYlGn).domain([1, 0]); // red=steep
+const areaColorScale  = d3.scaleSequential(d3.interpolateYlOrRd).domain([0, 1]);
+const slopeColorScale = d3.scaleSequential(d3.interpolateBlues).domain([0, 1]); // light=gentle, dark=steep
 
 function cellFill(idx, opacity) {
     if (colorMode === 'none') return `rgba(231,76,60,${opacity * 0.3})`;
@@ -318,7 +318,6 @@ function cellFill(idx, opacity) {
         const areas = lastPolyData.map(d => d.area);
         const mn = Math.min(...areas), mx = Math.max(...areas);
         const t = mx > mn ? (lastPolyData[idx].area - mn) / (mx - mn) : 0.5;
-        areaColorScale.domain([0, 1]);
         const c = d3.color(areaColorScale(t));
         return `rgba(${c.r},${c.g},${c.b},${opacity})`;
     }
@@ -343,12 +342,11 @@ function updateLegend() {
     const canvas = document.getElementById('legend-bar');
     const ctx = canvas.getContext('2d');
     const w = canvas.width, h = canvas.height;
-    const isSlope = colorMode === 'slope' || colorMode === 'avg-slope';
-    const scale = colorMode === 'area' ? areaColorScale.domain([0, 1]) : slopeColorScale;
+    const scale = colorMode === 'area' ? areaColorScale : slopeColorScale;
 
     for (let x = 0; x < w; x++) {
         const t = x / (w - 1);
-        const c = d3.color(scale(isSlope ? 1 - t : t));
+        const c = d3.color(scale(t));
         ctx.fillStyle = `rgb(${c.r},${c.g},${c.b})`;
         ctx.fillRect(x, 0, 1, h);
     }
