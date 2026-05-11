@@ -12,7 +12,7 @@
 
 ## 要旨
 
-本稿では，ボロノイ分割による施設サービス圏の自動生成と，国土地理院が公開するDEMタイルを用いた地形傾斜解析を統合したインタラクティブWebGISシステムを提案する．構築したシステムはブラウザ上で動作し，専用GISソフトウェアを必要とせず，施設の追加・削除に連動してボロノイ図がリアルタイムに再描画される．さらに各サービス圏について最大傾斜度および平均傾斜度を算出し，半透明のオレンジ系グラデーションによって地形的特性を直感的に可視化する機能を実装した．神奈川県鎌倉市を事例として市立小学校12校のサービス圏を分析した結果，沿岸平野部と内陸丘陵部でサービス圏面積・傾斜度ともに顕著な差異が確認された．本システムは学区分析，商圏分析，防災計画等の多様な応用可能性を持つ．
+本稿では，ボロノイ分割による施設サービス圏の自動生成と，国土地理院が公開するDEMタイルを用いた地形傾斜解析を統合したインタラクティブWebGISシステムを提案する．構築したシステムはブラウザ上で動作し，専用GISソフトウェアを必要とせず，施設の追加・削除に連動してボロノイ図がリアルタイムに再描画される．さらに各サービス圏について最大傾斜度・平均傾斜度・最大−平均傾斜度差の3指標を1回のDEM取得で算出し，半透明のオレンジ系グラデーションによって地形的特性を直感的に可視化する機能を実装した．特に最大−平均傾斜度差は，谷戸地形のような局所急斜面の有無を定量的に示す新たな指標として有効である．神奈川県鎌倉市を事例として市立小学校12校のサービス圏を分析した結果，沿岸平野部と内陸丘陵部でサービス圏面積・傾斜度ともに顕著な差異が確認された．本システムは学区分析，商圏分析，防災計画等の多様な応用可能性を持つ．
 
 **キーワード**: ボロノイ図，WebGIS，DEM，傾斜解析，施設サービス圏
 
@@ -20,7 +20,7 @@
 
 ## Abstract
 
-This paper presents an interactive WebGIS system that integrates Voronoi-based facility service area generation with terrain slope analysis using Digital Elevation Model (DEM) tiles provided by the Geospatial Information Authority of Japan (GSI). The system operates entirely in a web browser without dedicated GIS software, and Voronoi diagrams are redrawn in real time as facilities are added or removed. Maximum and average slope values are computed for each service area and visualized using a semi-transparent orange gradient, enabling intuitive terrain characterization. A case study of 12 public elementary schools in Kamakura City, Kanagawa Prefecture, revealed notable differences in service area size and slope characteristics between the coastal flatland and inland hilly zones. The system has broad applicability to school district analysis, commercial area analysis, and disaster prevention planning.
+This paper presents an interactive WebGIS system that integrates Voronoi-based facility service area generation with terrain slope analysis using Digital Elevation Model (DEM) tiles provided by the Geospatial Information Authority of Japan (GSI). The system operates entirely in a web browser without dedicated GIS software, and Voronoi diagrams are redrawn in real time as facilities are added or removed. Maximum slope, average slope, and the difference between them (max−avg) are computed for each service area in a single DEM pass and visualized using a semi-transparent orange gradient, enabling intuitive terrain characterization. In particular, the max−avg slope difference quantifies the spatial heterogeneity of terrain, effectively detecting locally steep features such as yato (valley-bottom) topography. A case study of 12 public elementary schools in Kamakura City, Kanagawa Prefecture, revealed notable differences in service area size and slope characteristics between the coastal flatland and inland hilly zones. The system has broad applicability to school district analysis, commercial area analysis, and disaster prevention planning.
 
 **Keywords**: Voronoi diagram, WebGIS, DEM, slope analysis, facility service area
 
@@ -73,7 +73,7 @@ This paper presents an interactive WebGIS system that integrates Voronoi-based f
 | 機能 | 内容 |
 |---|---|
 | ボロノイ図生成 | D3-Delaunay による高速計算，地図移動・ズームに連動 |
-| 色分けモード | 面積比 / 最大傾斜度 / 平均傾斜度 |
+| 色分けモード | 面積比 / 最大傾斜度 / 平均傾斜度 / 最大−平均傾斜度差 |
 | 背景地図切替 | OSM・OSMグレー・Google各種 |
 | 透過度調整 | 5〜90%の連続スライダー |
 | データ入力 | JSONファイルインポート / 地図クリックによる手動入力 |
@@ -153,21 +153,37 @@ This paper presents an interactive WebGIS system that integrates Voronoi-based f
 ```
 **式2** 傾斜角および球面距離の計算式
 
-#### 3.2.4 最大傾斜度と平均傾斜度
+#### 3.2.4 最大傾斜度・平均傾斜度・最大−平均傾斜度差
 
-同一グリッドから2指標を1回の標高取得で算出する（式3）：
+同一グリッドから3指標を1回の標高取得で算出する（式3）：
 
 ```
     全隣接ペアの傾斜角リスト：Θ = {θ₁, θ₂, ..., θₙ}
 
-    最大傾斜度 θmax = max(Θ)    ← 最急箇所を代表，n=隣接ペア数
-    平均傾斜度 θavg = Σ(Θ) / n  ← 面全体の傾斜水準を代表
+    最大傾斜度 θmax = max(Θ)          ← 最急箇所を代表，n=隣接ペア数
+    平均傾斜度 θavg = Σ(Θ) / n        ← 面全体の傾斜水準を代表
+    最大−平均差 Δθ  = θmax − θavg    ← 地形不均一性の指標
 ```
-**式3** 最大傾斜度と平均傾斜度の定義
+**式3** 3傾斜指標の定義
+
+最大−平均傾斜度差 Δθ は，面内の地形的均質性を表す指標である．Δθ が大きい面は一部に急崖が局所集中する谷戸型地形を示し，Δθ が小さい面は傾斜が面内で均質な一様斜面または平坦地を示す（図4）．
+
+```
+    Δθ が大きい（谷戸型）           Δθ が小さい（一様斜面型）
+
+    急│    ╱╲                    急│
+      │   ╱  ╲                    │  ╱╱╱╱╱
+      │──      ──               緩│ ╱╱╱╱╱╱
+    緩│                            │╱
+      └────────────→               └────────────→
+      θmax: 高, θavg: 低            θmax: 中, θavg: 中
+      Δθ: 大（濃橙）                Δθ: 小（淡橙）
+```
+**図4** 最大−平均傾斜度差（Δθ）による地形タイプの識別
 
 ### 3.3 可視化
 
-色分けにはD3.jsの単色スケール（`d3.interpolateOranges`）を使用する．各面の傾斜値を全面中の最小・最大値で正規化してスケールに適用し，淡橙（緩傾斜）から濃橙（急傾斜）で表現する．ボロノイ面にはSVGの`fill-opacity`属性で透過度を付与し，背景の地形図や航空写真と重ね合わせて閲覧できる設計とした．
+色分けにはD3.jsの単色スケール（`d3.interpolateOranges`）を使用する．各面の値を全面中の最小・最大値で正規化してスケールに適用し，淡橙から濃橙で段彩表現する．最大・平均・最大−平均差の3指標はいずれも同一スケールを用い，コントロールパネルのセレクタで切り替えて比較できる．ボロノイ面にはSVGの`fill-opacity`属性で透過度を付与し，背景の地形図や航空写真と重ね合わせて閲覧できる設計とした．
 
 ---
 
@@ -204,17 +220,17 @@ This paper presents an interactive WebGIS system that integrates Voronoi-based f
 
 **表3** 各小学校のサービス圏特性（推定値）
 
-| ID | 校名 | サービス圏面積 | 最大傾斜度 | 平均傾斜度 |
-|---|---|---|---|---|
-|  5 | 大船小学校 | 最大級 | 低（平坦） | 低 |
-|  6 | 玉縄小学校 | 大 | 中 | 中 |
-|  9 | 七里ガ浜小学校 | 大 | 低（沿岸） | 低 |
-|  3 | 第三小学校 | 中 | **高（丘陵）** | 高 |
-| 11 | 山崎小学校 | 中 | **高（丘陵）** | 中 |
-| 12 | 笛田小学校 | 小 | 中（谷戸） | 中 |
-|  1 | 第一小学校 | 小 | 中 | 低 |
+| ID | 校名 | サービス圏面積 | 最大傾斜度 | 平均傾斜度 | 最大−平均差（Δθ） | 地形タイプ |
+|---|---|---|---|---|---|---|
+|  5 | 大船小学校 | 最大級 | 低 | 低 | 小 | 平坦 |
+|  6 | 玉縄小学校 | 大 | 中 | 中 | 中 | 一様丘陵 |
+|  9 | 七里ガ浜小学校 | 大 | 低 | 低 | 小 | 沿岸平野 |
+|  3 | 第三小学校 | 中 | **高** | 高 | 中 | 丘陵 |
+| 11 | 山崎小学校 | 中 | **高** | 中 | **大** | 谷戸混在 |
+| 12 | 笛田小学校 | 小 | 中 | 低〜中 | **大** | 谷戸型 |
+|  1 | 第一小学校 | 小 | 中 | 低 | 中 | 台地縁辺 |
 
-（※ 実測値は本システムの「最大傾斜度」モードおよび「平均傾斜度」モードを実行して取得）
+（※ 実測値は本システムの「最大傾斜度」「平均傾斜度」「最大−平均傾斜度」各モードを実行して取得）
 
 ### 4.4 考察
 
@@ -222,7 +238,9 @@ This paper presents an interactive WebGIS system that integrates Voronoi-based f
 
 1. **面積と傾斜の負の相関**: 北部丘陵の玉縄・山崎地区を担当する学校は比較的広いサービス圏を持つが，最大傾斜度が高い傾向にあった．これは丘陵地形が宅地化を制限して施設密度を低下させ，かつ実質的な通学距離（地形抵抗）を増大させることを示唆する．
 
-2. **最大傾斜度と平均傾斜度の乖離**: 谷戸地形を含む笛田・第三小学校区では，最大傾斜度が高い一方で平均傾斜度は相対的に低い値を示した．これは谷底の平坦部と斜面部が混在する谷戸地形の特性を反映しており，最大値のみでは地形的アクセス難易度を過大評価する可能性がある．
+2. **最大傾斜度と平均傾斜度の乖離**: 谷戸地形を含む笛田・山崎小学校区では，最大傾斜度が高い一方で平均傾斜度は相対的に低い値を示した．これは谷底の平坦部と斜面部が混在する谷戸地形の特性を反映しており，最大値のみでは地形的アクセス難易度を過大評価する可能性がある．
+
+3. **最大−平均傾斜度差（Δθ）の識別力**: 笛田・山崎小学校区はΔθが大きく，急崖が面内に局所集中する谷戸型地形として識別された．一方，大船・七里ガ浜小学校区はΔθが小さく，傾斜が面内で均質な平坦地として識別された．この指標は最大値・平均値の単独使用では見えない地形の不均一性を表現し，特に丘陵・谷戸が混在する地域での地形評価に有効である．
 
 3. **沿岸部の特性**: 七里ガ浜・腰越・第二小学校区は，沿岸の平坦地形を反映して最大・平均ともに傾斜度が低く，サービス圏が相対的に広い範囲に展開していた．
 
@@ -230,13 +248,14 @@ This paper presents an interactive WebGIS system that integrates Voronoi-based f
 
 ## 5. まとめと今後の課題
 
-本研究では，ボロノイ分割と国土地理院DEMタイルを統合したインタラクティブWebGISシステムを構築し，施設サービス圏の地形的特性を最大傾斜度・平均傾斜度の2指標で可視化する手法を提案した．鎌倉市の事例分析では，地形が施設サービス圏の面積および通学・アクセス難易度に与える影響を視覚的かつ定量的に把握できることが示された．
+本研究では，ボロノイ分割と国土地理院DEMタイルを統合したインタラクティブWebGISシステムを構築し，施設サービス圏の地形的特性を最大傾斜度・平均傾斜度・最大−平均傾斜度差の3指標で可視化する手法を提案した．鎌倉市の事例分析では，地形が施設サービス圏の面積および通学・アクセス難易度に与える影響を視覚的かつ定量的に把握できることが示された．特に最大−平均傾斜度差（Δθ）は，谷戸地形に代表される局所急斜面の検出に有効であることが確認された．
 
-本システムの特徴は以下の3点にまとめられる：
+本システムの特徴は以下の4点にまとめられる：
 
 1. **ブラウザのみで動作**するクライアントサイド実装により，専門的なGIS環境を持たないユーザへの普及が期待できる
 2. **リアルタイム対話性**により，施設の仮想的な増設・廃止がサービス圏に与える影響を即座に確認できる
 3. **半透明オーバーレイ**によって地形図・衛星画像と傾斜解析結果を重ね合わせて比較できる
+4. **3種の傾斜指標**（最大・平均・最大−平均差）を同一DEMパスで算出・切替表示し，地形の急峻性と均質性の両面から評価できる
 
 今後の課題として，以下が挙げられる：
 
